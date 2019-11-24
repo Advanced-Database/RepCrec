@@ -1,3 +1,5 @@
+// Test 12
+// T3 should wait and should not abort
 begin(T1)
 begin(T2)
 begin(T3)
