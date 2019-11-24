@@ -1,7 +1,8 @@
-FILE_PATH = 'test/test1.txt'
+FILE_PATH = 'testcase/test1'
 
 if __name__ == '__main__':
-    for line in open(FILE_PATH):
-        li = line.strip()
-        if not li.startswith("//"):
-            print(line.rstrip())
+    with open(FILE_PATH, 'r') as fh:
+        for line in fh:
+            li = line.lstrip()
+            if not (li.startswith("//") or li.startswith("#")):
+                print(line.strip())
