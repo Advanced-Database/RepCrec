@@ -1,4 +1,4 @@
-class data_manager():
+class DataManager:
     def __init__(self, idx):
         print("Init Data Manager " + str(idx) + "!")
         self.idx = idx

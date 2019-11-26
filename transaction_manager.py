@@ -1,7 +1,7 @@
-from data_manager import data_manager
+from data_manager import DataManager
 
 
-class transaction_manager():
+class TransactionManager:
     def __init__(self):
         print("Init Transaction Manager!")
         self.data_manager_nodes = []
@@ -9,7 +9,7 @@ class transaction_manager():
 
     def instantiate_dm(self):
         for site_num in range(1, 11):
-            self.data_manager_nodes.append(data_manager(site_num))
+            self.data_manager_nodes.append(DataManager(site_num))
             cur_dm = self.data_manager_nodes[site_num - 1]
 
             for v_idx in range(1, 21):
