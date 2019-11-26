@@ -1,4 +1,5 @@
 from data_manager import data_manager
+import random
 
 
 class transaction_manager():
@@ -13,16 +14,13 @@ class transaction_manager():
             cur_dm = self.data_manager_nodes[site_num - 1]
 
             for v_idx in range(1, 21):
-                v_name = "x" + str(v_idx) + "." + str(site_num)
-                if v_idx % 2 == 0:
-                    cur_dm.data.append(v_name)
-                elif v_idx % 10 + 1 == site_num:
-                    cur_dm.data.append(v_name)
-
-            print("DM" + str(site_num) + "'s data: " + str(cur_dm.data))
+                v_name = "x" + str(v_idx)
+                if v_idx % 2 == 0 or v_idx % 10 + 1 == site_num:
+                    cur_dm.data[v_name] = v_idx * 10
 
     def get_instructions(self, instr):
-        self.data_manager_nodes[3].get_instructions(instr)
+        ran_site = random.randrange(0, 10)
+        self.data_manager_nodes[ran_site].get_instructions(instr)
         self.monitor_site_status()
 
     def monitor_site_status(self):
@@ -36,9 +34,15 @@ class transaction_manager():
         print("-------------------- Dump all the output --------------------")
         for dm in self.data_manager_nodes:
             if dm.isUp:
-                print("Site" + str(dm.idx) + " is up")
+                print("Site" + str(dm.idx) + "'s status: Up")
             else:
-                print("Site" + str(dm.idx) + " is down")
+                print("Site" + str(dm.idx) + "'s status: Down")
 
-            dm_info = dm.dump()
-            print("Site" + str(dm.idx) + ": " + dm_info)
+            dm_info = dm.dump(dm.idx)
+            print("Site" + str(dm.idx) + "'s data: " + dm_info)
+
+    def fail(self):
+        pass
+
+    def recover(self):
+        pass
