@@ -27,7 +27,7 @@ class TransactionManager:
 
     def monitor_site_status(self):
         for dm in self.data_manager_nodes:
-            if dm.isUp:
+            if dm.is_up:
                 pass
             else:
                 pass
@@ -35,7 +35,7 @@ class TransactionManager:
     def output_site_status(self):
         print("-------------------- Dump all the output --------------------")
         for dm in self.data_manager_nodes:
-            if dm.isUp:
+            if dm.is_up:
                 print("Site" + str(dm.idx) + " is up")
             else:
                 print("Site" + str(dm.idx) + " is down")
