@@ -1,8 +1,8 @@
-from data_manager import data_manager
+from data_manager import DataManager
 import random
 
 
-class transaction_manager():
+class TransactionManager:
     def __init__(self):
         print("Init Transaction Manager!")
         self.data_manager_nodes = []
@@ -10,7 +10,7 @@ class transaction_manager():
 
     def instantiate_dm(self):
         for site_num in range(1, 11):
-            self.data_manager_nodes.append(data_manager(site_num))
+            self.data_manager_nodes.append(DataManager(site_num))
             cur_dm = self.data_manager_nodes[site_num - 1]
 
             for v_idx in range(1, 21):
@@ -25,7 +25,7 @@ class transaction_manager():
 
     def monitor_site_status(self):
         for dm in self.data_manager_nodes:
-            if dm.isUp:
+            if dm.is_up:
                 pass
             else:
                 pass
@@ -33,8 +33,8 @@ class transaction_manager():
     def output_site_status(self):
         print("-------------------- Dump all the output --------------------")
         for dm in self.data_manager_nodes:
-            if dm.isUp:
-                print("Site" + str(dm.idx) + "'s status: Up")
+            if dm.is_up:
+                print("Site" + str(dm.idx) + " is up")
             else:
                 print("Site" + str(dm.idx) + "'s status: Down")
 

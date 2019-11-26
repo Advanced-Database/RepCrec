@@ -1,8 +1,8 @@
-class data_manager():
+class DataManager:
     def __init__(self, idx):
         print("Init Data Manager " + str(idx) + "!")
         self.idx = idx
-        self.isUp = True
+        self.is_up = True
         self.data = {}
         self.lock_table = {}
 
@@ -17,5 +17,5 @@ class data_manager():
         return result
 
     def detect_fail(self):
-        self.isUp = False
+        self.is_up = False
         self.lock_table.clear()
