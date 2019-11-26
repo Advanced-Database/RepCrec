@@ -3,14 +3,23 @@ from data_manager import data_manager
 
 class transaction_manager():
     def __init__(self):
-        print("-------------------- Begin to init TM and DM --------------------")
-        print("init Transaction Manager!")
+        print("Init Transaction Manager!")
         self.data_manager_nodes = []
         self.instantiate_dm()
 
     def instantiate_dm(self):
-        for i in range(10):
-            self.data_manager_nodes.append(data_manager(i))
+        for site_num in range(1, 11):
+            self.data_manager_nodes.append(data_manager(site_num))
+            cur_dm = self.data_manager_nodes[site_num - 1]
+
+            for v_idx in range(1, 21):
+                v_name = "x" + str(v_idx) + "." + str(site_num)
+                if v_idx % 2 == 0:
+                    cur_dm.data.append(v_name)
+                elif v_idx % 10 + 1 == site_num:
+                    cur_dm.data.append(v_name)
+
+            print("DM" + str(site_num) + "'s data: " + str(cur_dm.data))
 
     def get_instructions(self, instr):
         self.data_manager_nodes[3].get_instructions(instr)

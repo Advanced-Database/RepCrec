@@ -3,6 +3,7 @@ import transaction_manager
 FILE_PATH = 'testcase/test22'
 
 if __name__ == '__main__':
+    print("-------------------- Begin to init TM and DM --------------------")
     tm = transaction_manager.transaction_manager()
 
     with open(FILE_PATH, 'r') as fh:
