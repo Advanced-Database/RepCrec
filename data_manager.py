@@ -1,6 +1,6 @@
 class DataManager:
     def __init__(self, site_idx):
-        print("Init Data Manager " + str(site_idx) + "!")
+        # print("Init Data Manager " + str(site_idx) + "!")
         self.idx = site_idx
         self.is_up = True
         self.data = {}
