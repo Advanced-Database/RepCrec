@@ -14,6 +14,6 @@ if __name__ == '__main__':
                 if li.startswith("==="):
                     break
                 else:
-                    tm.get_instructions(li)
+                    tm.parse_instruction(li)
 
     tm.output_site_status()

@@ -6,19 +6,10 @@ class TransactionManager:
     def __init__(self):
         print("Init Transaction Manager!")
         self.data_manager_nodes = []
-        self.instantiate_dm()
+        for site_idx in range(1, 11):
+            self.data_manager_nodes.append(DataManager(site_idx))
 
-    def instantiate_dm(self):
-        for site_num in range(1, 11):
-            self.data_manager_nodes.append(DataManager(site_num))
-            cur_dm = self.data_manager_nodes[site_num - 1]
-
-            for v_idx in range(1, 21):
-                v_name = "x" + str(v_idx)
-                if v_idx % 2 == 0 or v_idx % 10 + 1 == site_num:
-                    cur_dm.data[v_name] = v_idx * 10
-
-    def get_instructions(self, instr):
+    def parse_instruction(self, instr):
         ran_site = random.randrange(0, 10)
         self.data_manager_nodes[ran_site].get_instructions(instr)
         self.monitor_site_status()
