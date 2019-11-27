@@ -1,6 +1,6 @@
 import transaction_manager
 
-FILE_PATH = 'testcase/test22'
+FILE_PATH = 'testcase/test1'
 
 if __name__ == '__main__':
     print("---------------- Begin to init TM and DM ----------------")
@@ -11,6 +11,9 @@ if __name__ == '__main__':
         for line in fh:
             li = line.split('//')[0].strip()
             if li:
-                tm.get_instructions(li)
+                if li.startswith("==="):
+                    break
+                else:
+                    tm.get_instructions(li)
 
     tm.output_site_status()
