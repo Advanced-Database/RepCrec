@@ -9,11 +9,6 @@ if __name__ == '__main__':
     with open(FILE_PATH, 'r') as fh:
         # print("---------------- Begin to process instructions ----------------")
         for line in fh:
-            li = line.split('//')[0].strip()
-            if li:
-                if li.startswith("==="):
-                    break
-                else:
-                    tm.parse_instruction(li)
+            tm.process_line(line)
 
     # tm.output_site_status()

@@ -1,67 +1,84 @@
-from data_manager import DataManager
 import re
+from data_manager import DataManager
+from parser import Parser
+
+
+class InvalidInstructionError(Exception):
+    pass
 
 
 class TransactionManager:
+    _parser = Parser()
+
     def __init__(self):
         # print("Init Transaction Manager!")
         self.data_manager_nodes = []
         for site_id in range(1, 11):
             self.data_manager_nodes.append(DataManager(site_id))
 
-    def parse_instruction(self, line):
-        instr_line = re.findall(r"[\w']+", line)
-        return {
-            'begin': self.begin,
-            'beginRO': self.beginro,
-            'R': self.read,
-            'W': self.write,
-            'dump': self.dump,
-            'end': self.end,
-            'fail': self.end,
-            'recover': self.end,
-        }.get(instr_line[0], self.invalid_instr)(instr_line)
+    def process_line(self, line):
+        li = self._parser.parse_line(line)
+        if li:
+            command = li.pop(0)
+            try:
+                self.execute_instruction(command, li)
+            except InvalidInstructionError:
+                print("[ERROR] Invalid instruction: " + line.strip())
+                return False
+        return True
+
+    def execute_instruction(self, command, args):
+        if command == "begin":
+            self.begin(args[0])
+        elif command == "beginRO":
+            self.beginro(args[0])
+        elif command == "R":
+            self.read(args[0], args[1])
+        elif command == "W":
+            self.write(args[0], args[1], args[2])
+        elif command == "dump":
+            self.dump()
+        elif command == "end":
+            self.end(args[0])
+        elif command == "fail":
+            self.fail(args[0])
+        elif command == "recover":
+            self.recover(args[0])
+        else:
+            raise InvalidInstructionError()
 
     # -----------------------------------------------------
     # -------------- Instruction Executions ---------------
     # -----------------------------------------------------
-    def begin(self, instr_line):
-        transaction_id = instr_line[1]
+    def begin(self, transaction_id):
         print(transaction_id + " begins.")
 
-    def beginro(self, instr_line):
-        transaction_id = instr_line[1]
+    def beginro(self, transaction_id):
         print(transaction_id + " begins and is read-only.")
 
-    def read(self, instr_line):
-        transaction_id = instr_line[1]
-        variable = instr_line[2]
+    def read(self, transaction_id, variable):
+        # transaction_id = instr_line[1]
+        # variable = instr_line[2]
         print(transaction_id + " read " + variable + ".")
 
-    def write(self, instr_line):
-        transaction_id = instr_line[1]
-        variable = instr_line[2]
-        value = instr_line[3]
+    def write(self, transaction_id, variable, value):
+        # transaction_id = instr_line[1]
+        # variable = instr_line[2]
+        # value = instr_line[3]
         print(transaction_id + " write " + variable +
               " with value " + value + ".")
 
-    def dump(self, instr_line):
+    def dump(self):
         print("Dump all data at all sites!")
 
-    def end(self, instr_line):
-        transaction_id = instr_line[1]
+    def end(self, transaction_id):
         print(transaction_id + " ends (commits or aborts).")
 
-    def fail(self, instr_line):
-        site_id = instr_line[1]
+    def fail(self, site_id):
         print("Site " + site_id + " fails.")
 
-    def recover(self, instr_line):
-        site_id = instr_line[1]
+    def recover(self, site_id):
         print("Site " + site_id + " recovers.")
-
-    def invalid_instr(self, instr_line):
-        print("Invalid instruction: " + " ".join(instr_line))
 
     # -----------------------------------------------------
     # -----------------------------------------------------
