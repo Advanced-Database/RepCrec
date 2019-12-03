@@ -87,6 +87,9 @@ class TransactionManager:
         '''
 
     def read(self, transaction_id, variable):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
         print(transaction_id + " read " + variable)
 
         # While a T holds an ex_lock on x, no other T may acquire re_lock on x
@@ -120,6 +123,9 @@ class TransactionManager:
                   transaction_id + " must wait")
 
     def write(self, transaction_id, variable, value):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
         print(transaction_id + " write " +
               variable + " with value '" + value + "'")
         '''
