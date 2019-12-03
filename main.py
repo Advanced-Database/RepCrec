@@ -1,6 +1,6 @@
 import transaction_manager
 
-FILE_PATH = 'testcase/test1'
+FILE_PATH = 'testcase/test2'
 
 if __name__ == '__main__':
     # print("---------------- Begin to init TM and DM ----------------")
