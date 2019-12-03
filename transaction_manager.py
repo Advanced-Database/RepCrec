@@ -8,10 +8,18 @@ class InvalidInstructionError(Exception):
         self.message = message
 
 
+class Transaction:
+    def __init__(self, ts, transaction_id, is_ro):
+        self.ts = ts
+        self.transaction_id = transaction_id
+        self.is_ro = is_ro
+
+
 class TransactionManager:
-    _parser = Parser()
+    parser = Parser()
     transaction_table = {}
-    _ts = 0
+    ts = 0
+    operation_queue = []
 
     def __init__(self):
         # print("Init Transaction Manager!")
@@ -20,13 +28,13 @@ class TransactionManager:
             self.data_manager_nodes.append(DataManager(site_id))
 
     def process_line(self, line):
-        li = self._parser.parse_line(line)
+        li = self.parser.parse_line(line)
         if li:
             command = li.pop(0)
             try:
-                print("----- Timestamp: " + str(self._ts) + " -----")
+                print("----- Timestamp: " + str(self.ts) + " -----")
                 self.execute_instruction(command, li)
-                self._ts += 1
+                self.ts += 1
             except InvalidInstructionError as e:
                 print("[INVALID_INSTRUCTION_ERROR] " + e.message +
                       ": " + line.strip())
@@ -60,15 +68,15 @@ class TransactionManager:
         if self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} already exists".format(transaction_id))
-        self.transaction_table[transaction_id] = {"ts": self._ts,
-                                                  "is_ro": False}
+        self.transaction_table[transaction_id] = Transaction(
+            self.ts, transaction_id, False)
         print(transaction_id + " begins")
 
     def beginro(self, transaction_id):
         if self.transaction_table.get(transaction_id):
             raise InvalidInstructionError("Transaction already exists")
-        self.transaction_table[transaction_id] = {"ts": self._ts,
-                                                  "is_ro": True}
+        self.transaction_table[transaction_id] = Transaction(
+            self.ts, transaction_id, True)
         print(transaction_id + " begins and is read-only")
         '''
         TO-DO: (Multiversion)
