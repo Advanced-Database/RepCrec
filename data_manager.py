@@ -9,6 +9,8 @@ class DataManager:
             v_name = "x" + str(v_idx)
             if v_idx % 2 == 0 or v_idx % 10 + 1 == self.site_id:
                 self.data[v_name] = v_idx * 10
+        self.fail_ts = []
+        self.recover_ts = []
 
     def get_instructions(self, instr):
         print("Data Manager " + str(self.site_id) +
@@ -21,6 +23,14 @@ class DataManager:
             result += key + ": " + str(self.data[key]) + ", "
         return result
 
-    def detect_fail(self):
+    def fail(self, ts):
         self.is_up = False
+        self.fail_ts.append(ts)
         self.lock_table.clear()
+
+    def recover(self, ts):
+        self.is_up = True
+        self.recover_ts.append(ts)
+        # todo:
+        #   non-replicated: available to read and write.
+        #   replicated: Allow writes, Reject reads until a write has occurred.

@@ -14,6 +14,7 @@ class Transaction:
         self.transaction_id = transaction_id
         self.is_ro = is_ro
         self.will_abort = False
+        self.sites_accessed = []
 
 
 class Operation:
@@ -222,19 +223,24 @@ class TransactionManager:
         # else:
 
     def fail(self, site_id):
+        site = self.data_manager_nodes[int(site_id) - 1]
+        if not site.is_up:
+            raise InvalidInstructionError(
+                "Site {} is already down".format(site_id))
+        site.fail(self.ts)
+        for t in self.transaction_table.values():
+            if (not t.is_ro) and (not t.will_abort) and (
+                    site_id in t.sites_accessed):
+                t.will_abort = True
         print("Site " + site_id + " fails")
 
     def recover(self, site_id):
+        site = self.data_manager_nodes[int(site_id) - 1]
+        if site.is_up:
+            raise InvalidInstructionError(
+                "Site {} is already ip".format(site_id))
+        site.recover(self.ts)
         print("Site " + site_id + " recovers")
-        '''
-        TO-DO:
-        1. Commit transactions that should be committed and abort the others.
-        2. All non-replicated items are available to read and write.
-        3. For replicated parts, It allows all transactions to end, but dont start new ones and have this site read copies of its items from any other up site. When done, this service has recovered
-        4. The site is up immediately. Allow writes to copies. Reject reads to x until a write to x has occurred.
-        5. Abort on Failure
-        6. When T1 believes a site is down, all sites must agree. This implies no network partitions
-        '''
 
     # -----------------------------------------------------
     # -----------------------------------------------------
