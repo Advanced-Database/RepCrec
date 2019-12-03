@@ -10,5 +10,5 @@ if __name__ == '__main__':
         # print("---------------- Begin to process instructions ----------------")
         for line in fh:
             if not tm.process_line(line):
-                print("Abort!")
+                print("[Abort!]")
                 break
