@@ -4,11 +4,14 @@ from parser import Parser
 
 
 class InvalidInstructionError(Exception):
-    pass
+    def __init__(self, message):
+        self.message = message
 
 
 class TransactionManager:
     _parser = Parser()
+    transaction_table = {}
+    _ts = 0
 
     def __init__(self):
         # print("Init Transaction Manager!")
@@ -21,9 +24,12 @@ class TransactionManager:
         if li:
             command = li.pop(0)
             try:
+                print("----- Timestamp: " + str(self._ts) + " -----")
                 self.execute_instruction(command, li)
-            except InvalidInstructionError:
-                print("[ERROR] Invalid instruction: " + line.strip())
+                self._ts += 1
+            except InvalidInstructionError as e:
+                print("[INVALID_INSTRUCTION_ERROR] " + e.message +
+                      ": " + line.strip())
                 return False
         return True
 
@@ -45,18 +51,27 @@ class TransactionManager:
         elif command == "recover":
             self.recover(args[0])
         else:
-            raise InvalidInstructionError()
+            raise InvalidInstructionError("Unknown instruction")
 
     # -----------------------------------------------------
     # -------------- Instruction Executions ---------------
     # -----------------------------------------------------
     def begin(self, transaction_id):
+        if self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError("Transaction {} already exists".format(transaction_id))
+        self.transaction_table[transaction_id] = {"ts": self._ts,
+                                                  "is_ro": False}
         print(transaction_id + " begins")
 
     def beginro(self, transaction_id):
+        if self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError("Transaction already exists")
+        self.transaction_table[transaction_id] = {"ts": self._ts,
+                                                  "is_ro": True}
         print(transaction_id + " begins and is read-only")
         '''
         TO-DO: (Multiversion)
+        *** This should be implemented in DataManager. ***
         1. A read-only transaction obtains no locks
         2. It reads all data items that have committed at the time the read transaction begins
         3. As concurrent updates take place, save old copies

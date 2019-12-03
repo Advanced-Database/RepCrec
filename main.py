@@ -1,6 +1,6 @@
 import transaction_manager
 
-FILE_PATH = 'testcase/test2'
+FILE_PATH = 'testcase/test1'
 
 if __name__ == '__main__':
     # print("---------------- Begin to init TM and DM ----------------")
@@ -9,4 +9,6 @@ if __name__ == '__main__':
     with open(FILE_PATH, 'r') as fh:
         # print("---------------- Begin to process instructions ----------------")
         for line in fh:
-            tm.process_line(line)
+            if not tm.process_line(line):
+                print("Abort!")
+                break
