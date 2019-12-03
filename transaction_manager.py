@@ -13,6 +13,15 @@ class Transaction:
         self.ts = ts
         self.transaction_id = transaction_id
         self.is_ro = is_ro
+        self.will_abort = False
+
+
+class Operation:
+    def __init__(self, command, transaction_id, variable, value=None):
+        self.command = command
+        self.transaction_id = transaction_id
+        self.variable = variable
+        self.value = value
 
 
 class TransactionManager:
@@ -50,7 +59,7 @@ class TransactionManager:
         elif command == "R":
             self.add_read_operation(args[0], args[1])
         elif command == "W":
-            self.write(args[0], args[1], args[2])
+            self.add_write_operation(args[0], args[1], args[2])
         elif command == "dump":
             self.dump()
         elif command == "end":
@@ -62,8 +71,31 @@ class TransactionManager:
         else:
             raise InvalidInstructionError("Unknown instruction")
 
+    def add_read_operation(self, transaction_id, variable):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "{} does not exist".format(transaction_id))
+        self.operation_queue.append(
+            Operation("R", transaction_id, variable))
+
+    def add_write_operation(self, transaction_id, variable, value):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "{} does not exist".format(transaction_id))
+        self.operation_queue.append(
+            Operation("W", transaction_id, variable, value))
+
     def execute_operation_queue(self):
-        pass
+        for op in list(self.operation_queue):
+            success = False
+            if op.command == "R":
+                success = self.read(op.transaction_id, op.variable)
+            elif op.command == "W":
+                success = self.write(op.transaction_id, op.variable, op.value)
+            else:
+                print("Invalid operation!")
+            if success:
+                self.operation_queue.remove(op)
 
     # -----------------------------------------------------
     # -------------- Operation Executions ---------------
@@ -71,17 +103,18 @@ class TransactionManager:
     def begin(self, transaction_id):
         if self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
-                "Transaction {} already exists".format(transaction_id))
+                "{} already exists".format(transaction_id))
         self.transaction_table[transaction_id] = Transaction(
             self.ts, transaction_id, False)
-        print(transaction_id + " begins")
+        print("{} begins".format(transaction_id))
 
     def beginro(self, transaction_id):
         if self.transaction_table.get(transaction_id):
-            raise InvalidInstructionError("Transaction already exists")
+            raise InvalidInstructionError(
+                "{} already exists".format(transaction_id))
         self.transaction_table[transaction_id] = Transaction(
             self.ts, transaction_id, True)
-        print(transaction_id + " begins and is read-only")
+        print("{} begins and is read-only".format(transaction_id))
         '''
         TO-DO: (Multiversion)
         *** This should be implemented in DataManager. ***
@@ -89,11 +122,6 @@ class TransactionManager:
         2. It reads all data items that have committed at the time the read transaction begins
         3. As concurrent updates take place, save old copies
         '''
-
-    def add_read_operation(self, transaction_id, variable):
-        if not self.transaction_table.get(transaction_id):
-            raise InvalidInstructionError(
-                "Transaction {} does not exist".format(transaction_id))
 
     def read(self, transaction_id, variable):
         print(transaction_id + " read " + variable)
@@ -121,7 +149,9 @@ class TransactionManager:
                         "Conflict! " + t_with_x_lock + " is holding the ex_lock for " + variable)
                 else:
                     print(variable + ": " + str(dm.data[variable]))
+                    return True
                 break
+        return False
 
     def write(self, transaction_id, variable, value):
         if not self.transaction_table.get(transaction_id):
@@ -162,6 +192,8 @@ class TransactionManager:
                     dm.data[variable] = value
                     print(transaction_id + " write value '" +
                           str(value) + "' into site " + str(dm.site_id))
+                    return True
+        return False
 
     def dump(self):
         print("Dump all data at all sites!")
