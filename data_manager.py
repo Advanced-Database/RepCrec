@@ -9,6 +9,7 @@ class DataManager:
             v_name = "x" + str(v_idx)
             if v_idx % 2 == 0 or v_idx % 10 + 1 == self.site_id:
                 self.data[v_name] = v_idx * 10
+                self.lock_table[v_name] = None
         self.fail_ts = []
         self.recover_ts = []
 
@@ -16,6 +17,24 @@ class DataManager:
         print("Data Manager " + str(self.site_id) +
               " received below instruction:")
         print(instr)
+
+    def get_read_lock(self, variable):
+        if self.is_up and variable in self.lock_table and self.lock_table[variable] != 'x':
+            return True
+        else:
+            return False
+
+    def set_read_lock(self, variable):
+        self.lock_table[variable] = 'r'
+
+    def get_exclusive_lock(self, variable):
+        if self.is_up and variable in self.lock_table and self.lock_table[variable] == None:
+            return True
+        else:
+            return False
+
+    def set_exclusive_lock(self, variable):
+        self.lock_table[variable] = 'x'
 
     def dump(self, idx):
         result = "site " + str(idx) + " - "
