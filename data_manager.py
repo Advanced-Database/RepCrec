@@ -5,13 +5,14 @@ class DataManager:
         self.is_up = True
         self.data = {}
         self.lock_table = {}
+        self.fail_ts = []
+        self.recover_ts = []
+
         for v_idx in range(1, 21):
             v_name = "x" + str(v_idx)
             if v_idx % 2 == 0 or v_idx % 10 + 1 == self.site_id:
                 self.data[v_name] = v_idx * 10
                 self.lock_table[v_name] = None
-        self.fail_ts = []
-        self.recover_ts = []
 
     def get_read_lock(self, variable):
         if self.is_up and variable in self.lock_table and self.lock_table[variable] != 'X':
@@ -19,21 +20,24 @@ class DataManager:
         else:
             return False
 
-    def read(self, variable):
-        return self.data[variable]
-
     def set_read_lock(self, variable):
         self.lock_table[variable] = 'R'
         return True
 
-    def get_exclusive_lock(self, variable):
+    def is_exclusive_lock_conflict(self, variable):
         if self.is_up and variable in self.lock_table:
             if self.lock_table[variable] == None:
-                return True
-            else:
                 return False
+            else:
+                return True
         else:
+            return False
+
+    def get_exclusive_lock(self, variable):
+        if self.is_up and variable in self.lock_table and self.lock_table[variable] == None:
             return True
+        else:
+            return False
 
     def set_exclusive_lock(self, variable):
         self.lock_table[variable] = 'X'

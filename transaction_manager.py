@@ -141,13 +141,14 @@ class TransactionManager:
 
         print(transaction_id + " write " +
               variable + " with value '" + value + "'")
-        all_available = True
         for dm in self.data_manager_nodes:
-            if not dm.get_exclusive_lock(variable):
-                all_available = False
+            if dm.is_exclusive_lock_conflict(variable):
+                return False
 
-        if all_available:
-            dm.set_exclusive_lock(variable)
+        for dm in self.data_manager_nodes:
+            if dm.get_exclusive_lock(variable):
+                dm.set_exclusive_lock(variable)
+        return True
         '''
         TO-DO:
         4. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
