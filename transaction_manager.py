@@ -66,22 +66,16 @@ class TransactionManager:
 
     def read(self, transaction_id, variable):
         print(transaction_id + " read " + variable + ".")
+        isRead, var_val = False, None
 
-        if variable in self.ex_locks:
-            # While a T holds an ex_lock on x, no other T may acquire read_lock on x
-            print("Conflict! " + self.ex_locks[variable] +
-                  " is holding the ex_lock for " + variable)
-        else:
-            # T acquires a re_lock on item x if it only wants to read x
-            if variable not in self.re_locks:
-                self.re_locks[variable] = [transaction_id]
-            else:
-                self.re_locks[variable].append(transaction_id)
-            print("Success! " + transaction_id +
-                  " gets a re_locks for " + variable)
+        # While a T holds an ex_lock on x, no other T may acquire read_lock on x
+        for dm in self.data_manager_nodes:
+            if dm.is_up and variable in dm.lock_table:
+                print(
+                    "Conflict! " + self.ex_locks[variable] + " is holding the ex_lock for " + variable)
+                return
 
         # If T cannot read a copy of x from a site, then read x from another site
-        isRead, var_val = False, None
         for dm in self.data_manager_nodes:
             if dm.is_up and variable in dm.data:
                 var_val = dm.data[variable]
@@ -92,8 +86,12 @@ class TransactionManager:
             else:
                 print(transaction_id + " cannot read a copy of " + variable +
                       " from site_" + str(dm.site_id))
+
         # If no relevant site is available, then T must wait
-        if not isRead:
+        if isRead:
+            print("Success! " + transaction_id + " gets a re_locks for " +
+                  variable + ", and read the value '" + str(var_val) + "'")
+        else:
             print("No relevant site is available, then " +
                   transaction_id + " must wait")
 
@@ -102,8 +100,6 @@ class TransactionManager:
               variable + " with value " + value + ".")
         '''
         TO-DO:
-        1. If T cannot write a copy of x, then write to all other copies, provided there is at least one.
-        2. Available copies allows writes and commits to just the available sites.
         4. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
         5. If a write from T1 can get some locks but not all, then it is an implementation option whether T1 should release the locks it has or not. However, for purposes of clarity we will say that T1 should release those locks.
         '''
@@ -125,6 +121,7 @@ class TransactionManager:
             # If T cannot write a copy of x, then write to all other copies, provided there is at least one
             isWrite = False
             for dm in self.data_manager_nodes:
+                # Available copies allows writes and commits to just the available sites.
                 if dm.is_up and variable in dm.data:
                     dm.data[variable] = value
                     isWrite = True
@@ -141,8 +138,7 @@ class TransactionManager:
             else:
                 print("Site" + str(dm.site_id) + "'s status: Down")
 
-            dm_info = dm.dump(dm.site_id)
-            print("Site" + str(dm.site_id) + "'s data: " + dm_info)
+            print(dm.dump(dm.site_id))
 
     def end(self, transaction_id):
         print(transaction_id + " ends (commits or aborts).")
