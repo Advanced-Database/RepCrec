@@ -4,11 +4,22 @@ from parser import Parser
 
 
 class InvalidInstructionError(Exception):
-    pass
+    def __init__(self, message):
+        self.message = message
+
+
+class Transaction:
+    def __init__(self, ts, transaction_id, is_ro):
+        self.ts = ts
+        self.transaction_id = transaction_id
+        self.is_ro = is_ro
 
 
 class TransactionManager:
-    _parser = Parser()
+    parser = Parser()
+    transaction_table = {}
+    ts = 0
+    operation_queue = []
 
     def __init__(self):
         # print("Init Transaction Manager!")
@@ -17,13 +28,16 @@ class TransactionManager:
             self.data_manager_nodes.append(DataManager(site_id))
 
     def process_line(self, line):
-        li = self._parser.parse_line(line)
+        li = self.parser.parse_line(line)
         if li:
             command = li.pop(0)
             try:
+                print("----- Timestamp: " + str(self.ts) + " -----")
                 self.execute_instruction(command, li)
-            except InvalidInstructionError:
-                print("[ERROR] Invalid instruction: " + line.strip())
+                self.ts += 1
+            except InvalidInstructionError as e:
+                print("[INVALID_INSTRUCTION_ERROR] " + e.message +
+                      ": " + line.strip())
                 return False
         return True
 
@@ -45,24 +59,37 @@ class TransactionManager:
         elif command == "recover":
             self.recover(args[0])
         else:
-            raise InvalidInstructionError()
+            raise InvalidInstructionError("Unknown instruction")
 
     # -----------------------------------------------------
     # -------------- Instruction Executions ---------------
     # -----------------------------------------------------
     def begin(self, transaction_id):
+        if self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} already exists".format(transaction_id))
+        self.transaction_table[transaction_id] = Transaction(
+            self.ts, transaction_id, False)
         print(transaction_id + " begins")
 
     def beginro(self, transaction_id):
+        if self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError("Transaction already exists")
+        self.transaction_table[transaction_id] = Transaction(
+            self.ts, transaction_id, True)
         print(transaction_id + " begins and is read-only")
         '''
         TO-DO: (Multiversion)
+        *** This should be implemented in DataManager. ***
         1. A read-only transaction obtains no locks
         2. It reads all data items that have committed at the time the read transaction begins
         3. As concurrent updates take place, save old copies
         '''
 
     def read(self, transaction_id, variable):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
         print(transaction_id + " read " + variable)
 
         for dm in self.data_manager_nodes:
@@ -91,6 +118,9 @@ class TransactionManager:
                 break
 
     def write(self, transaction_id, variable, value):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
         print(transaction_id + " write " +
               variable + " with value '" + value + "'")
         '''
