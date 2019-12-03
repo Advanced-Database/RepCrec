@@ -9,8 +9,6 @@ class InvalidInstructionError(Exception):
 
 class TransactionManager:
     _parser = Parser()
-    re_locks = {}
-    ex_locks = {}
 
     def __init__(self):
         # print("Init Transaction Manager!")
@@ -53,10 +51,10 @@ class TransactionManager:
     # -------------- Instruction Executions ---------------
     # -----------------------------------------------------
     def begin(self, transaction_id):
-        print(transaction_id + " begins.")
+        print(transaction_id + " begins")
 
     def beginro(self, transaction_id):
-        print(transaction_id + " begins and is read-only.")
+        print(transaction_id + " begins and is read-only")
         '''
         TO-DO: (Multiversion)
         1. A read-only transaction obtains no locks
@@ -65,23 +63,23 @@ class TransactionManager:
         '''
 
     def read(self, transaction_id, variable):
-        print(transaction_id + " read " + variable + ".")
-        isRead, var_val = False, None
+        print(transaction_id + " read " + variable)
 
-        # While a T holds an ex_lock on x, no other T may acquire read_lock on x
+        # While a T holds an ex_lock on x, no other T may acquire re_lock on x
         for dm in self.data_manager_nodes:
-            if dm.is_up and variable in dm.lock_table:
+            if dm.is_up and variable in dm.lock_table and dm.lock_table[variable][1] == 'x':
                 print(
-                    "Conflict! " + self.ex_locks[variable] + " is holding the ex_lock for " + variable)
+                    "Conflict! " + dm.lock_table[variable][0] + " is holding the ex_lock for " + variable)
                 return
 
+        isRead, var_val = False, None
         # If T cannot read a copy of x from a site, then read x from another site
         for dm in self.data_manager_nodes:
             if dm.is_up and variable in dm.data:
+                if variable not in dm.lock_table:
+                    dm.lock_table[variable] = transaction_id, 'r'
                 var_val = dm.data[variable]
                 isRead = True
-                print(transaction_id + " reads a copy of " + variable +
-                      " with value '" + str(var_val) + "' from site_" + str(dm.site_id))
                 break
             else:
                 print(transaction_id + " cannot read a copy of " + variable +
@@ -89,15 +87,15 @@ class TransactionManager:
 
         # If no relevant site is available, then T must wait
         if isRead:
-            print("Success! " + transaction_id + " gets a re_locks for " +
-                  variable + ", and read the value '" + str(var_val) + "'")
+            print("Success! " + transaction_id + " gets a re_lock for " +
+                  variable + ", and read the value '" + str(var_val) + "' from site_" + str(dm.site_id))
         else:
             print("No relevant site is available, then " +
                   transaction_id + " must wait")
 
     def write(self, transaction_id, variable, value):
         print(transaction_id + " write " +
-              variable + " with value " + value + ".")
+              variable + " with value '" + value + "'")
         '''
         TO-DO:
         4. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
@@ -105,30 +103,28 @@ class TransactionManager:
         '''
 
         # While a T holds an read_lock or ex_lock on x, no other T may acquire ex_lock on x
-        if variable in self.re_locks or variable in self.ex_locks:
-            if variable in self.re_locks:
-                print("Conflict! " + str(self.re_locks[variable]) +
-                      " is holding a re_lock for " + variable)
-            if variable in self.ex_locks:
-                print("Conflict! " + self.ex_locks[variable] +
-                      " is holding a ex_lock for " + variable)
-        else:
-            # T acquires an ex_lock on x if it may want to write x
-            self.ex_locks[variable] = transaction_id
-            print("Success! " + transaction_id +
-                  " gets a ex_lock for " + variable)
+        for dm in self.data_manager_nodes:
+            if dm.is_up and variable in dm.lock_table:
+                if dm.lock_table[variable][1] == 'r':
+                    print("Conflict! " + str(dm.lock_table[variable][0]) +
+                          " is holding a re_lock for " + variable)
+                if dm.lock_table[variable][1] == 'x':
+                    print("Conflict! " + dm.lock_table[variable][0] +
+                          " is holding a ex_lock for " + variable)
+                return
 
-            # If T cannot write a copy of x, then write to all other copies, provided there is at least one
-            isWrite = False
-            for dm in self.data_manager_nodes:
-                # Available copies allows writes and commits to just the available sites.
-                if dm.is_up and variable in dm.data:
-                    dm.data[variable] = value
-                    isWrite = True
+        isWrite = False
+        # If T cannot write a copy of x, then write to all other copies, provided there is at least one
+        for dm in self.data_manager_nodes:
+            # Available copies allows writes and commits to just the available sites.
+            if dm.is_up and variable in dm.data:
+                dm.lock_table[variable] = transaction_id, 'x'
+                dm.data[variable] = value
+                isWrite = True
 
-            if isWrite:
-                print("Success! " + transaction_id +
-                      " write " + value + " into all the available copies of " + variable)
+        if isWrite:
+            print("Success! " + transaction_id + " gets an ex_lock for " + variable +
+                  ", and write value '" + value + "' into all the available copies of " + variable)
 
     def dump(self):
         print("Dump all data at all sites!")
@@ -150,10 +146,10 @@ class TransactionManager:
         '''
 
     def fail(self, site_id):
-        print("Site " + site_id + " fails.")
+        print("Site " + site_id + " fails")
 
     def recover(self, site_id):
-        print("Site " + site_id + " recovers.")
+        print("Site " + site_id + " recovers")
         '''
         TO-DO:
         1. Commit transactions that should be committed and abort the others.
