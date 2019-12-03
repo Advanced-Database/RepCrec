@@ -58,7 +58,8 @@ class TransactionManager:
     # -----------------------------------------------------
     def begin(self, transaction_id):
         if self.transaction_table.get(transaction_id):
-            raise InvalidInstructionError("Transaction {} already exists".format(transaction_id))
+            raise InvalidInstructionError(
+                "Transaction {} already exists".format(transaction_id))
         self.transaction_table[transaction_id] = {"ts": self._ts,
                                                   "is_ro": False}
         print(transaction_id + " begins")
@@ -82,9 +83,10 @@ class TransactionManager:
 
         # While a T holds an ex_lock on x, no other T may acquire re_lock on x
         for dm in self.data_manager_nodes:
-            if dm.is_up and variable in dm.lock_table and dm.lock_table[variable][1] == 'x':
-                print(
-                    "Conflict! " + dm.lock_table[variable][0] + " is holding the ex_lock for " + variable)
+            if dm.is_up and variable in dm.lock_table and \
+                    dm.lock_table[variable][1] == 'x':
+                print("Conflict! " + dm.lock_table[variable][0] +
+                      " is holding the ex_lock for " + variable)
                 return
 
         isRead, var_val = False, None
@@ -103,7 +105,8 @@ class TransactionManager:
         # If no relevant site is available, then T must wait
         if isRead:
             print("Success! " + transaction_id + " gets a re_lock for " +
-                  variable + ", and read the value '" + str(var_val) + "' from site_" + str(dm.site_id))
+                  variable + ", and read the value '" + str(var_val) +
+                  "' from site_" + str(dm.site_id))
         else:
             print("No relevant site is available, then " +
                   transaction_id + " must wait")
@@ -138,8 +141,10 @@ class TransactionManager:
                 isWrite = True
 
         if isWrite:
-            print("Success! " + transaction_id + " gets an ex_lock for " + variable +
-                  ", and write value '" + value + "' into all the available copies of " + variable)
+            print(
+                "Success! " + transaction_id + " gets an ex_lock for " +
+                variable + ", and write value '" + value +
+                "' into all the available copies of " + variable)
 
     def dump(self):
         print("Dump all data at all sites!")
