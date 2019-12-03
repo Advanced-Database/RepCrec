@@ -91,12 +91,14 @@ class TransactionManager:
         print("Dump all data at all sites!")
         for dm in self.data_manager_nodes:
             if dm.is_up:
-                print("Site" + str(dm.id) + " is up")
+                pass
+                #print("Site" + str(dm.id) + " is up")
             else:
-                print("Site" + str(dm.id) + "'s status: Down")
+                pass
+                #print("Site" + str(dm.id) + "'s status: Down")
 
             dm_info = dm.dump(dm.id)
-            print("Site" + str(dm.id) + "'s data: " + dm_info)
+            #print("Site" + str(dm.id) + "'s data: " + dm_info)
 
     def end(self, transaction_id):
         print(transaction_id + " ends (commits or aborts).")
