@@ -14,7 +14,8 @@ class DataManager:
         self.recover_ts = []
 
     def get_read_lock(self, variable):
-        if self.is_up and variable in self.lock_table and self.lock_table[variable] != 'x':
+        if self.is_up and variable in self.lock_table and \
+                self.lock_table[variable] != 'x':
             return True
         else:
             return False
@@ -23,7 +24,8 @@ class DataManager:
         self.lock_table[variable] = 'r'
 
     def get_exclusive_lock(self, variable):
-        if self.is_up and variable in self.lock_table and self.lock_table[variable] == None:
+        if self.is_up and variable in self.lock_table and \
+                self.lock_table[variable] is None:
             return True
         else:
             return False
