@@ -14,7 +14,7 @@ class Transaction:
         self.transaction_id = transaction_id
         self.is_ro = is_ro
         self.will_abort = False
-        self.sites_accessed = []
+        self.sites_accessed = set()
 
 
 class Operation:
@@ -130,8 +130,10 @@ class TransactionManager:
                 "Transaction {} does not exist".format(transaction_id))
 
         print(transaction_id + " read " + variable)
+        t_sites_accessed = self.transaction_table[transaction_id].sites_accessed
         for dm in self.data_manager_nodes:
             if dm.get_read_lock(transaction_id, variable):
+                t_sites_accessed.add(dm.site_id)
                 return dm.set_read_lock(transaction_id, variable)
         return False
 
@@ -142,12 +144,14 @@ class TransactionManager:
 
         print(transaction_id + " write " +
               variable + " with value '" + value + "'")
+        t_sites_accessed = self.transaction_table[transaction_id].sites_accessed
         for dm in self.data_manager_nodes:
             if dm.is_exclusive_lock_conflict(transaction_id, variable):
                 return False
 
         for dm in self.data_manager_nodes:
             if dm.get_exclusive_lock(transaction_id, variable):
+                t_sites_accessed.add(dm.site_id)
                 dm.set_exclusive_lock(transaction_id, variable)
         return True
 
@@ -162,14 +166,19 @@ class TransactionManager:
 
     def end(self, transaction_id):
         print(transaction_id + " ends (commits or aborts).")
-        '''
-        TO-DO:
-        1. At Commit time, for two phase locked transactions: ensure that all servers that you accessed (read or write) have been up since the first time they were accessed. Otherwise, abort. (Read-only transactions need not abort in this case.)
-        2. end(T1) causes your system to report whether T1 can commit in the format T1 commits or T1 aborts
-        3. If a transaction accesses an item (really accesses it, not just request a lock) at a site and the site then fails, then transaction should continue to execute and then abort only at its commit time.
-        '''
-        for dm in self.data_manager_nodes:
-            dm.release_locks(transaction_id)
+        if self.transaction_table[transaction_id].will_abort:
+            self.abort(transaction_id)
+        else:
+            self.commit(transaction_id)
+
+    def abort(self, transaction_id):
+        pass
+
+    def commit(self, transaction_id):
+        pass
+
+    # for dm in self.data_manager_nodes:
+    #     dm.release_locks(transaction_id)
 
     def fail(self, site_id):
         site = self.data_manager_nodes[int(site_id) - 1]
