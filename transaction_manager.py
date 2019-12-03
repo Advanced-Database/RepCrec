@@ -73,16 +73,10 @@ class TransactionManager:
             raise InvalidInstructionError("Unknown instruction")
 
     def add_read_operation(self, transaction_id, variable):
-        if not self.transaction_table.get(transaction_id):
-            raise InvalidInstructionError(
-                "{} does not exist".format(transaction_id))
         self.operation_queue.append(
             Operation("R", transaction_id, variable))
 
     def add_write_operation(self, transaction_id, variable, value):
-        if not self.transaction_table.get(transaction_id):
-            raise InvalidInstructionError(
-                "{} does not exist".format(transaction_id))
         self.operation_queue.append(
             Operation("W", transaction_id, variable, value))
 
@@ -90,7 +84,10 @@ class TransactionManager:
         for op in list(self.operation_queue):
             success = False
             if op.command == "R":
-                success = self.read(op.transaction_id, op.variable)
+                if self.transaction_table[op.transaction_id].is_ro:
+                    success = self.read_snapshot(op.transaction_id, op.variable)
+                else:
+                    success = self.read(op.transaction_id, op.variable)
             elif op.command == "W":
                 success = self.write(op.transaction_id, op.variable, op.value)
             else:
@@ -99,7 +96,7 @@ class TransactionManager:
                 self.operation_queue.remove(op)
 
     # -----------------------------------------------------
-    # -------------- Operation Executions ---------------
+    # -------------- Operation Executions -----------------
     # -----------------------------------------------------
     def begin(self, transaction_id):
         if self.transaction_table.get(transaction_id):
@@ -116,13 +113,20 @@ class TransactionManager:
         self.transaction_table[transaction_id] = Transaction(
             self.ts, transaction_id, True)
         print("{} begins and is read-only".format(transaction_id))
-        '''
-        TO-DO: (Multiversion)
-        *** This should be implemented in DataManager. ***
-        1. A read-only transaction obtains no locks
-        2. It reads all data items that have committed at the time the read transaction begins
-        3. As concurrent updates take place, save old copies
-        '''
+
+    def read_snapshot(self, transaction_id, variable):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
+        ts = self.transaction_table[transaction_id].ts
+        for dm in self.data_manager_nodes:
+            if dm.is_up:
+                result = dm.read_snapshot(variable, ts)
+                if result.success:
+                    print("{} read {}.{}: {}".format(
+                        transaction_id, variable, dm.site_id, result.value))
+                    return True
+        return False
 
     def read(self, transaction_id, variable):
         if not self.transaction_table.get(transaction_id):
@@ -131,7 +135,10 @@ class TransactionManager:
 
         for dm in self.data_manager_nodes:
             if dm.get_read_lock(variable):
-                return dm.set_read_lock(variable)
+                value = dm.read(variable)
+                print("{} read {}.{}: {}".format(
+                    transaction_id, variable, dm.site_id, value))
+                return True
         return False
 
     def write(self, transaction_id, variable, value):
@@ -139,15 +146,11 @@ class TransactionManager:
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
 
-        print(transaction_id + " write " +
-              variable + " with value '" + value + "'")
-        all_available = True
         for dm in self.data_manager_nodes:
-            if not dm.get_exclusive_lock(variable):
-                all_available = False
-
-        if all_available:
-            dm.set_exclusive_lock(variable)
+            if dm.get_exclusive_lock(variable):
+                dm.write(variable, value)
+                print(transaction_id + " write " +
+                      variable + " with value '" + value + "'")
         '''
         TO-DO:
         4. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
@@ -158,9 +161,9 @@ class TransactionManager:
         print("Dump all data at all sites!")
         for dm in self.data_manager_nodes:
             if dm.is_up:
-                print("Site" + str(dm.site_id) + " is up")
+                print("Site " + str(dm.site_id) + " is up")
             else:
-                print("Site" + str(dm.site_id) + "'s status: Down")
+                print("Site " + str(dm.site_id) + "'s status: Down")
 
             print(dm.dump(dm.site_id))
 
