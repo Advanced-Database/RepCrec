@@ -12,36 +12,44 @@ class DataManager:
             v_name = "x" + str(v_idx)
             if v_idx % 2 == 0 or v_idx % 10 + 1 == self.site_id:
                 self.data[v_name] = v_idx * 10
-                self.lock_table[v_name] = None
+                self.lock_table[v_name] = None, None
 
-    def get_read_lock(self, variable):
-        if self.is_up and variable in self.lock_table and self.lock_table[variable] != 'X':
+    def get_read_lock(self, transaction_id, variable):
+        if self.is_up and variable in self.lock_table \
+                and (self.lock_table[variable][0] == transaction_id or self.lock_table[variable][1] != 'X'):
             return True
         else:
             return False
 
-    def set_read_lock(self, variable):
-        self.lock_table[variable] = 'R'
+    def set_read_lock(self, transaction_id, variable):
+        self.lock_table[variable] = transaction_id, 'R'
         return True
 
-    def is_exclusive_lock_conflict(self, variable):
+    def is_exclusive_lock_conflict(self, transaction_id, variable):
         if self.is_up and variable in self.lock_table:
-            if self.lock_table[variable] == None:
+            if self.lock_table[variable][0] == transaction_id or self.lock_table[variable][1] == None:
                 return False
             else:
                 return True
         else:
             return False
 
-    def get_exclusive_lock(self, variable):
-        if self.is_up and variable in self.lock_table and self.lock_table[variable] == None:
+    def get_exclusive_lock(self, transaction_id, variable):
+        if self.is_up and variable in self.lock_table \
+                and (self.lock_table[variable][0] == transaction_id or self.lock_table[variable][1] == None):
             return True
         else:
             return False
 
-    def set_exclusive_lock(self, variable):
-        self.lock_table[variable] = 'X'
+    def set_exclusive_lock(self, transaction_id, variable):
+        self.lock_table[variable] = transaction_id, 'X'
         return True
+
+    def release_locks(self, transaction_id):
+        for variable, lock_item in self.lock_table.items():
+            if lock_item[0] and lock_item[0] == transaction_id:
+                self.lock_table[variable] = None, None
+            # print(variable + ": " + str(self.lock_table[variable]))
 
     def dump(self, idx):
         result = "site " + str(idx) + " - "

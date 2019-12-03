@@ -131,8 +131,8 @@ class TransactionManager:
 
         print(transaction_id + " read " + variable)
         for dm in self.data_manager_nodes:
-            if dm.get_read_lock(variable):
-                return dm.set_read_lock(variable)
+            if dm.get_read_lock(transaction_id, variable):
+                return dm.set_read_lock(transaction_id, variable)
         return False
 
     def write(self, transaction_id, variable, value):
@@ -143,12 +143,12 @@ class TransactionManager:
         print(transaction_id + " write " +
               variable + " with value '" + value + "'")
         for dm in self.data_manager_nodes:
-            if dm.is_exclusive_lock_conflict(variable):
+            if dm.is_exclusive_lock_conflict(transaction_id, variable):
                 return False
 
         for dm in self.data_manager_nodes:
-            if dm.get_exclusive_lock(variable):
-                dm.set_exclusive_lock(variable)
+            if dm.get_exclusive_lock(transaction_id, variable):
+                dm.set_exclusive_lock(transaction_id, variable)
         return True
 
     def dump(self):
@@ -164,18 +164,12 @@ class TransactionManager:
         print(transaction_id + " ends (commits or aborts).")
         '''
         TO-DO:
-        1. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
         2. At Commit time, for two phase locked transactions: ensure that all servers that you accessed (read or write) have been up since the first time they were accessed. Otherwise, abort. (Read-only transactions need not abort in this case.)
         3. end(T1) causes your system to report whether T1 can commit in the format T1 commits or T1 aborts
         4. If a transaction accesses an item (really accesses it, not just request a lock) at a site and the site then fails, then transaction should continue to execute and then abort only at its commit time.
         '''
-        # for dm in self.data_manager_nodes:
-        #     for variable in dm.lock_table.keys():
-        #         lock_item = dm.lock_table[variable]
-        #         if lock_item[0] == transaction_id and lock_item[1] == 'x':
-        #             dm.data[variable] = lock_item[2]
-        # if dm.is_up:
-        # else:
+        for dm in self.data_manager_nodes:
+            dm.release_locks(transaction_id)
 
     def fail(self, site_id):
         site = self.data_manager_nodes[int(site_id) - 1]
