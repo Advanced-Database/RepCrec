@@ -66,10 +66,22 @@ class TransactionManager:
 
     def read(self, transaction_id, variable):
         print(transaction_id + " read " + variable + ".")
-        var_val = None
+
+        if variable in self.ex_locks:
+            # While a T holds an ex_lock on x, no other T may acquire read_lock on x
+            print("Conflict! " + self.ex_locks[variable] +
+                  " is holding the ex_lock for " + variable)
+        else:
+            # T acquires a re_lock on item x if it only wants to read x
+            if variable not in self.re_locks:
+                self.re_locks[variable] = [transaction_id]
+            else:
+                self.re_locks[variable].append(transaction_id)
+            print("Success! " + transaction_id +
+                  " gets a re_locks for " + variable)
 
         # If T cannot read a copy of x from a site, then read x from another site
-        isRead = False
+        isRead, var_val = False, None
         for dm in self.data_manager_nodes:
             if dm.is_up and variable in dm.data:
                 var_val = dm.data[variable]
@@ -85,19 +97,6 @@ class TransactionManager:
             print("No relevant site is available, then " +
                   transaction_id + " must wait")
 
-        if variable in self.ex_locks:
-            # While a T holds an ex_lock on x, no other T may acquire read_lock on x
-            print("Conflict! " + self.ex_locks[variable] +
-                  " is holding the ex_lock for " + variable)
-        else:
-            # T acquires a re_lock on item x if it only wants to read x
-            if variable not in self.re_locks:
-                self.re_locks[variable] = [transaction_id]
-            else:
-                self.re_locks[variable].append(transaction_id)
-            print("Success! " + transaction_id +
-                  " gets a re_locks for " + variable)
-
     def write(self, transaction_id, variable, value):
         print(transaction_id + " write " +
               variable + " with value " + value + ".")
@@ -111,7 +110,6 @@ class TransactionManager:
 
         # While a T holds an read_lock or ex_lock on x, no other T may acquire ex_lock on x
         if variable in self.re_locks or variable in self.ex_locks:
-
             if variable in self.re_locks:
                 print("Conflict! " + str(self.re_locks[variable]) +
                       " is holding a re_lock for " + variable)
@@ -123,6 +121,17 @@ class TransactionManager:
             self.ex_locks[variable] = transaction_id
             print("Success! " + transaction_id +
                   " gets a ex_lock for " + variable)
+
+            # If T cannot write a copy of x, then write to all other copies, provided there is at least one
+            isWrite = False
+            for dm in self.data_manager_nodes:
+                if dm.is_up and variable in dm.data:
+                    dm.data[variable] = value
+                    isWrite = True
+
+            if isWrite:
+                print("Success! " + transaction_id +
+                      " write " + value + " into all the available copies of " + variable)
 
     def dump(self):
         print("Dump all data at all sites!")
