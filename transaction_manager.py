@@ -124,76 +124,30 @@ class TransactionManager:
         '''
 
     def read(self, transaction_id, variable):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
+
         print(transaction_id + " read " + variable)
-
         for dm in self.data_manager_nodes:
-            # If T cannot read a copy of x from a site, then read x from another site
-            if dm.is_up and variable in dm.data:
-                new_lock = [{
-                    "t_id": transaction_id,
-                    "lock_type": "r"
-                }]
-                dm.lock_table[variable] = dm.lock_table.get(
-                    variable, []) + new_lock
-
-                # Check if any transaction already held x_lock on the same variable
-                has_x_lock = False
-                for lock_item in dm.lock_table[variable]:
-                    if lock_item["lock_type"] == 'x':
-                        has_x_lock, t_with_x_lock = True, lock_item["t_id"]
-                        break
-
-                if has_x_lock:
-                    # While any T holds an ex_lock on x, no other T may acquire re_lock on x
-                    print(
-                        "Conflict! " + t_with_x_lock + " is holding the ex_lock for " + variable)
-                else:
-                    print(variable + ": " + str(dm.data[variable]))
-                    return True
-                break
-        return False
+            if dm.get_read_lock(variable):
+                dm.set_exclusive_lock(variable)
 
     def write(self, transaction_id, variable, value):
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
+
         print(transaction_id + " write " +
               variable + " with value '" + value + "'")
+        for dm in self.data_manager_nodes:
+            if dm.get_exclusive_lock(variable):
+                dm.set_exclusive_lock(variable)
         '''
         TO-DO:
         4. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
         5. If a write from T1 can get some locks but not all, then it is an implementation option whether T1 should release the locks it has or not. However, for purposes of clarity we will say that T1 should release those locks.
         '''
-
-        has_conflict = False
-        # If T cannot write a copy of x, then write to all other copies, provided there is at least one
-        for dm in self.data_manager_nodes:
-            if dm.is_up and variable in dm.data:
-                new_lock = [{
-                    "t_id": transaction_id,
-                    "lock_type": "x",
-                    "val": value
-                }]
-                dm.lock_table[variable] = dm.lock_table.get(
-                    variable, []) + new_lock
-
-                # print(dm.lock_table[variable])
-                if len(dm.lock_table[variable]) > 1:
-                    # While a T holds an read_lock or ex_lock on x, no other T may acquire ex_lock on x
-                    has_conflict = True
-
-        if has_conflict:
-            print(
-                "Conflict! There's at least one transction is holding the lock for " + variable + "in some sites")
-        else:
-            for dm in self.data_manager_nodes:
-                # Available copies allows writes and commits to just the available sites.
-                if dm.is_up and variable in dm.data:
-                    dm.data[variable] = value
-                    print(transaction_id + " write value '" +
-                          str(value) + "' into site " + str(dm.site_id))
-                    return True
-        return False
 
     def dump(self):
         print("Dump all data at all sites!")
