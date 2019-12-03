@@ -65,33 +65,30 @@ class TransactionManager:
     def read(self, transaction_id, variable):
         print(transaction_id + " read " + variable)
 
-        # While a T holds an ex_lock on x, no other T may acquire re_lock on x
         for dm in self.data_manager_nodes:
-            if dm.is_up and variable in dm.lock_table and dm.lock_table[variable][1] == 'x':
-                print(
-                    "Conflict! " + dm.lock_table[variable][0] + " is holding the ex_lock for " + variable)
-                return
-
-        isRead, var_val = False, None
-        # If T cannot read a copy of x from a site, then read x from another site
-        for dm in self.data_manager_nodes:
+            # If T cannot read a copy of x from a site, then read x from another site
             if dm.is_up and variable in dm.data:
-                if variable not in dm.lock_table:
-                    dm.lock_table[variable] = transaction_id, 'r'
-                var_val = dm.data[variable]
-                isRead = True
-                break
-            else:
-                print(transaction_id + " cannot read a copy of " + variable +
-                      " from site_" + str(dm.site_id))
+                new_lock = [{
+                    "t_id": transaction_id,
+                    "lock_type": "r"
+                }]
+                dm.lock_table[variable] = dm.lock_table.get(
+                    variable, []) + new_lock
 
-        # If no relevant site is available, then T must wait
-        if isRead:
-            print("Success! " + transaction_id + " gets a re_lock for " +
-                  variable + ", and read the value '" + str(var_val) + "' from site_" + str(dm.site_id))
-        else:
-            print("No relevant site is available, then " +
-                  transaction_id + " must wait")
+                # Check if any transaction already held x_lock on the same variable
+                has_x_lock = False
+                for lock_item in dm.lock_table[variable]:
+                    if lock_item["lock_type"] == 'x':
+                        has_x_lock, t_with_x_lock = True, lock_item["t_id"]
+                        break
+
+                if has_x_lock:
+                    # While any T holds an ex_lock on x, no other T may acquire re_lock on x
+                    print(
+                        "Conflict! " + t_with_x_lock + " is holding the ex_lock for " + variable)
+                else:
+                    print(variable + ": " + str(dm.data[variable]))
+                break
 
     def write(self, transaction_id, variable, value):
         print(transaction_id + " write " +
@@ -102,29 +99,33 @@ class TransactionManager:
         5. If a write from T1 can get some locks but not all, then it is an implementation option whether T1 should release the locks it has or not. However, for purposes of clarity we will say that T1 should release those locks.
         '''
 
-        # While a T holds an read_lock or ex_lock on x, no other T may acquire ex_lock on x
-        for dm in self.data_manager_nodes:
-            if dm.is_up and variable in dm.lock_table:
-                if dm.lock_table[variable][1] == 'r':
-                    print("Conflict! " + str(dm.lock_table[variable][0]) +
-                          " is holding a re_lock for " + variable)
-                if dm.lock_table[variable][1] == 'x':
-                    print("Conflict! " + dm.lock_table[variable][0] +
-                          " is holding a ex_lock for " + variable)
-                return
-
-        isWrite = False
+        has_conflict = False
         # If T cannot write a copy of x, then write to all other copies, provided there is at least one
         for dm in self.data_manager_nodes:
-            # Available copies allows writes and commits to just the available sites.
             if dm.is_up and variable in dm.data:
-                dm.lock_table[variable] = transaction_id, 'x'
-                dm.data[variable] = value
-                isWrite = True
+                new_lock = [{
+                    "t_id": transaction_id,
+                    "lock_type": "x",
+                    "val": value
+                }]
+                dm.lock_table[variable] = dm.lock_table.get(
+                    variable, []) + new_lock
 
-        if isWrite:
-            print("Success! " + transaction_id + " gets an ex_lock for " + variable +
-                  ", and write value '" + value + "' into all the available copies of " + variable)
+                # print(dm.lock_table[variable])
+                if len(dm.lock_table[variable]) > 1:
+                    # While a T holds an read_lock or ex_lock on x, no other T may acquire ex_lock on x
+                    has_conflict = True
+
+        if has_conflict:
+            print(
+                "Conflict! There's at least one transction is holding the lock for " + variable + "in some sites")
+        else:
+            for dm in self.data_manager_nodes:
+                # Available copies allows writes and commits to just the available sites.
+                if dm.is_up and variable in dm.data:
+                    dm.data[variable] = value
+                    print(transaction_id + " write value '" +
+                          str(value) + "' into site " + str(dm.site_id))
 
     def dump(self):
         print("Dump all data at all sites!")
@@ -144,6 +145,13 @@ class TransactionManager:
         2. end(T1) causes your system to report whether T1 can commit in the format T1 commits or T1 aborts
         3. If a transaction accesses an item (really accesses it, not just request a lock) at a site and the site then fails, then transaction should continue to execute and then abort only at its commit time.
         '''
+        # for dm in self.data_manager_nodes:
+        #     for variable in dm.lock_table.keys():
+        #         lock_item = dm.lock_table[variable]
+        #         if lock_item[0] == transaction_id and lock_item[1] == 'x':
+        #             dm.data[variable] = lock_item[2]
+        # if dm.is_up:
+        # else:
 
     def fail(self, site_id):
         print("Site " + site_id + " fails")
