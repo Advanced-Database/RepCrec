@@ -18,22 +18,27 @@ class DataManager:
         print(instr)
 
     def get_read_lock(self, variable):
-        if self.is_up and variable in self.lock_table and self.lock_table[variable] != 'x':
+        if self.is_up and variable in self.lock_table and self.lock_table[variable] != 'X':
             return True
         else:
             return False
 
     def set_read_lock(self, variable):
-        self.lock_table[variable] = 'r'
+        self.lock_table[variable] = 'R'
+        return True
 
     def get_exclusive_lock(self, variable):
-        if self.is_up and variable in self.lock_table and self.lock_table[variable] == None:
-            return True
+        if self.is_up and variable in self.lock_table:
+            if self.lock_table[variable] == None:
+                return True
+            else:
+                return False
         else:
-            return False
+            return True
 
     def set_exclusive_lock(self, variable):
-        self.lock_table[variable] = 'x'
+        self.lock_table[variable] = 'X'
+        return True
 
     def dump(self, idx):
         result = "site " + str(idx) + " - "
