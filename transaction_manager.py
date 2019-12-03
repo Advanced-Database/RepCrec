@@ -164,9 +164,9 @@ class TransactionManager:
         print(transaction_id + " ends (commits or aborts).")
         '''
         TO-DO:
-        2. At Commit time, for two phase locked transactions: ensure that all servers that you accessed (read or write) have been up since the first time they were accessed. Otherwise, abort. (Read-only transactions need not abort in this case.)
-        3. end(T1) causes your system to report whether T1 can commit in the format T1 commits or T1 aborts
-        4. If a transaction accesses an item (really accesses it, not just request a lock) at a site and the site then fails, then transaction should continue to execute and then abort only at its commit time.
+        1. At Commit time, for two phase locked transactions: ensure that all servers that you accessed (read or write) have been up since the first time they were accessed. Otherwise, abort. (Read-only transactions need not abort in this case.)
+        2. end(T1) causes your system to report whether T1 can commit in the format T1 commits or T1 aborts
+        3. If a transaction accesses an item (really accesses it, not just request a lock) at a site and the site then fails, then transaction should continue to execute and then abort only at its commit time.
         '''
         for dm in self.data_manager_nodes:
             dm.release_locks(transaction_id)

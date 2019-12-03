@@ -49,7 +49,8 @@ class DataManager:
         for variable, lock_item in self.lock_table.items():
             if lock_item[0] and lock_item[0] == transaction_id:
                 self.lock_table[variable] = None, None
-            # print(variable + ": " + str(self.lock_table[variable]))
+                print(transaction_id + " release a " +
+                      lock_item[1] + "_lock on " + variable + " in site " + str(self.site_id))
 
     def dump(self, idx):
         result = "site " + str(idx) + " - "
