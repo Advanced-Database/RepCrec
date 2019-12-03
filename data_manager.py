@@ -13,11 +13,6 @@ class DataManager:
         self.fail_ts = []
         self.recover_ts = []
 
-    def get_instructions(self, instr):
-        print("Data Manager " + str(self.site_id) +
-              " received below instruction:")
-        print(instr)
-
     def get_read_lock(self, variable):
         if self.is_up and variable in self.lock_table and self.lock_table[variable] != 'x':
             return True
