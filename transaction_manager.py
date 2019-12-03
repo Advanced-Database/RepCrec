@@ -192,7 +192,7 @@ class TransactionManager:
         site = self.data_manager_nodes[int(site_id) - 1]
         if site.is_up:
             raise InvalidInstructionError(
-                "Site {} is already ip".format(site_id))
+                "Site {} is already up".format(site_id))
         site.recover(self.ts)
         print("Site " + site_id + " recovers")
 
