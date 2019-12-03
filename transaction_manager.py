@@ -129,10 +129,13 @@ class TransactionManager:
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
 
-        print(transaction_id + " read " + variable)
         for dm in self.data_manager_nodes:
             if dm.get_read_lock(variable):
-                dm.set_exclusive_lock(variable)
+                value = dm.read(variable)
+                print("{} read {}.{}: {}".format(
+                    transaction_id, variable, dm.site_id, value))
+                return True
+        return False
 
     def write(self, transaction_id, variable, value):
         if not self.transaction_table.get(transaction_id):

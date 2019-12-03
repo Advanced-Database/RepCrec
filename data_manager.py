@@ -20,6 +20,9 @@ class DataManager:
         else:
             return False
 
+    def read(self, variable):
+        return self.data[variable]
+
     def set_read_lock(self, variable):
         self.lock_table[variable] = 'r'
 
