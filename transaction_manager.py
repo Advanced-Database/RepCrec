@@ -129,6 +129,7 @@ class TransactionManager:
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
 
+        print(transaction_id + " read " + variable)
         for dm in self.data_manager_nodes:
             if dm.get_read_lock(variable):
                 return dm.set_read_lock(variable)
