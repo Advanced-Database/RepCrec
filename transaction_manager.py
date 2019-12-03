@@ -150,11 +150,6 @@ class TransactionManager:
             if dm.get_exclusive_lock(variable):
                 dm.set_exclusive_lock(variable)
         return True
-        '''
-        TO-DO:
-        4. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
-        5. If a write from T1 can get some locks but not all, then it is an implementation option whether T1 should release the locks it has or not. However, for purposes of clarity we will say that T1 should release those locks.
-        '''
 
     def dump(self):
         print("Dump all data at all sites!")
@@ -163,16 +158,16 @@ class TransactionManager:
                 print("Site" + str(dm.site_id) + " is up")
             else:
                 print("Site" + str(dm.site_id) + "'s status: Down")
-
             print(dm.dump(dm.site_id))
 
     def end(self, transaction_id):
         print(transaction_id + " ends (commits or aborts).")
         '''
         TO-DO:
-        1. At Commit time, for two phase locked transactions: ensure that all servers that you accessed (read or write) have been up since the first time they were accessed. Otherwise, abort. (Read-only transactions need not abort in this case.)
-        2. end(T1) causes your system to report whether T1 can commit in the format T1 commits or T1 aborts
-        3. If a transaction accesses an item (really accesses it, not just request a lock) at a site and the site then fails, then transaction should continue to execute and then abort only at its commit time.
+        1. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
+        2. At Commit time, for two phase locked transactions: ensure that all servers that you accessed (read or write) have been up since the first time they were accessed. Otherwise, abort. (Read-only transactions need not abort in this case.)
+        3. end(T1) causes your system to report whether T1 can commit in the format T1 commits or T1 aborts
+        4. If a transaction accesses an item (really accesses it, not just request a lock) at a site and the site then fails, then transaction should continue to execute and then abort only at its commit time.
         '''
         # for dm in self.data_manager_nodes:
         #     for variable in dm.lock_table.keys():
