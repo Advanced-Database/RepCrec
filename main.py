@@ -10,5 +10,3 @@ if __name__ == '__main__':
         # print("---------------- Begin to process instructions ----------------")
         for line in fh:
             tm.process_line(line)
-
-    # tm.output_site_status()
