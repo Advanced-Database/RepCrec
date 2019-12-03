@@ -33,7 +33,8 @@ class TransactionManager:
             command = li.pop(0)
             try:
                 print("----- Timestamp: " + str(self.ts) + " -----")
-                self.execute_instruction(command, li)
+                self.process_instruction(command, li)
+                self.execute_operation_queue()
                 self.ts += 1
             except InvalidInstructionError as e:
                 print("[INVALID_INSTRUCTION_ERROR] " + e.message +
@@ -41,13 +42,13 @@ class TransactionManager:
                 return False
         return True
 
-    def execute_instruction(self, command, args):
+    def process_instruction(self, command, args):
         if command == "begin":
             self.begin(args[0])
         elif command == "beginRO":
             self.beginro(args[0])
         elif command == "R":
-            self.read(args[0], args[1])
+            self.add_read_operation(args[0], args[1])
         elif command == "W":
             self.write(args[0], args[1], args[2])
         elif command == "dump":
@@ -61,8 +62,11 @@ class TransactionManager:
         else:
             raise InvalidInstructionError("Unknown instruction")
 
+    def execute_operation_queue(self):
+        pass
+
     # -----------------------------------------------------
-    # -------------- Instruction Executions ---------------
+    # -------------- Operation Executions ---------------
     # -----------------------------------------------------
     def begin(self, transaction_id):
         if self.transaction_table.get(transaction_id):
@@ -86,10 +90,12 @@ class TransactionManager:
         3. As concurrent updates take place, save old copies
         '''
 
-    def read(self, transaction_id, variable):
+    def add_read_operation(self, transaction_id, variable):
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
+
+    def read(self, transaction_id, variable):
         print(transaction_id + " read " + variable)
 
         for dm in self.data_manager_nodes:
