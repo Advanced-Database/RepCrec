@@ -23,6 +23,7 @@ class DataManager:
 
     def set_read_lock(self, transaction_id, variable):
         self.lock_table[variable] = transaction_id, 'R'
+        print(variable + ": " + str(self.data[variable]))
         return True
 
     def is_exclusive_lock_conflict(self, transaction_id, variable):
@@ -44,6 +45,9 @@ class DataManager:
     def set_exclusive_lock(self, transaction_id, variable):
         self.lock_table[variable] = transaction_id, 'X'
         return True
+
+    def write_value(self, variable, value):
+        self.data[variable] = value
 
     def release_locks(self, transaction_id):
         for variable, lock_item in self.lock_table.items():

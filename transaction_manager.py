@@ -153,6 +153,7 @@ class TransactionManager:
             if dm.get_exclusive_lock(transaction_id, variable):
                 t_sites_accessed.add(dm.site_id)
                 dm.set_exclusive_lock(transaction_id, variable)
+                dm.write_value(variable, value)
         return True
 
     def dump(self):
@@ -165,20 +166,24 @@ class TransactionManager:
             print(dm.dump(dm.site_id))
 
     def end(self, transaction_id):
-        print(transaction_id + " ends (commits or aborts).")
+        print(transaction_id + " is ended")
         if self.transaction_table[transaction_id].will_abort:
             self.abort(transaction_id)
         else:
             self.commit(transaction_id)
 
     def abort(self, transaction_id):
-        pass
+        print(transaction_id + " is aborted")
+        for dm in self.data_manager_nodes:
+            """
+            TO-DO: restore all the value written by this transaction to the original one
+            """
+            dm.release_locks(transaction_id)
 
     def commit(self, transaction_id):
-        pass
-
-    # for dm in self.data_manager_nodes:
-    #     dm.release_locks(transaction_id)
+        print(transaction_id + " is commited")
+        for dm in self.data_manager_nodes:
+            dm.release_locks(transaction_id)
 
     def fail(self, site_id):
         site = self.data_manager_nodes[int(site_id) - 1]
