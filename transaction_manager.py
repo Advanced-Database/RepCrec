@@ -85,11 +85,13 @@ class TransactionManager:
             success = False
             if op.command == "R":
                 if self.transaction_table[op.transaction_id].is_ro:
-                    success = self.read_snapshot(op.transaction_id, op.variable_id)
+                    success = self.read_snapshot(op.transaction_id,
+                                                 op.variable_id)
                 else:
                     success = self.read(op.transaction_id, op.variable_id)
             elif op.command == "W":
-                success = self.write(op.transaction_id, op.variable_id, op.value)
+                success = self.write(op.transaction_id, op.variable_id,
+                                     op.value)
             else:
                 print("Invalid operation!")
             if success:
@@ -134,7 +136,7 @@ class TransactionManager:
                 "Transaction {} does not exist".format(transaction_id))
 
         for dm in self.data_manager_nodes:
-            if dm.is_up:
+            if dm.is_up and dm.has_variable(variable_id):
                 result = dm.read(transaction_id, variable_id)
                 if result.success:
                     self.transaction_table[
@@ -148,17 +150,24 @@ class TransactionManager:
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
-
+        all_relevant_sites_down = True
+        can_get_all_write_locks = True
         for dm in self.data_manager_nodes:
-            if dm.get_exclusive_lock(variable_id):
-                dm.write(variable_id, value)
-                print(transaction_id + " write " +
-                      variable_id + " with value '" + value + "'")
-        '''
-        TO-DO:
-        4. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
-        5. If a write from T1 can get some locks but not all, then it is an implementation option whether T1 should release the locks it has or not. However, for purposes of clarity we will say that T1 should release those locks.
-        '''
+            if dm.is_up and dm.has_variable(variable_id):
+                all_relevant_sites_down = False
+                result = dm.can_get_write_lock(transaction_id, variable_id)
+                if not result:
+                    can_get_all_write_locks = False
+        if not all_relevant_sites_down and can_get_all_write_locks:
+            for dm in self.data_manager_nodes:
+                if dm.is_up and dm.has_variable(variable_id):
+                    dm.write(transaction_id, variable_id, value)
+                    self.transaction_table[
+                        transaction_id].sites_accessed.append(dm.site_id)
+                    print("{} write {}.{} with value {}".format(
+                        transaction_id, variable_id, dm.site_id, value))
+            return True
+        return False
 
     def dump(self):
         print("Dump all data at all sites!")

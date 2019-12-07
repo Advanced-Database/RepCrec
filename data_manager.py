@@ -40,7 +40,7 @@ class QueuedLock:
         self.transaction_id = transaction_id
         self.lock_type = lock_type
 
-
+# todo: rewrite locks
 class Lock:
     def __init__(self, variable_id, transaction_id, lock_type: LockType):
         self._variable_id = variable_id
@@ -54,6 +54,7 @@ class Lock:
         self.transaction_list.add(transaction_id)
 
     def add_to_queue(self, queued_lock):
+        # todo: avoid duplicates
         self.queue.append(queued_lock)
 
     def has_queued_write_lock(self):
@@ -83,6 +84,9 @@ class DataManager:
         self.fail_ts_list = []  # latest fail at end
         self.recover_ts_list = []  # latest recover at end
         self.uncommitted_write_list = {}
+
+    def has_variable(self, variable_id):
+        return self.data.get(variable_id)
 
     def read_snapshot(self, variable_id, ts):
         v = self.data.get(variable_id)
@@ -129,6 +133,15 @@ class DataManager:
                 variable_id, transaction_id, LockType.R)
             return Result(True, v.get_last_committed_value())
         return Result(False)
+
+    def can_get_write_lock(self, transaction_id, variable_id):
+        lock = self.lock_table.get(variable_id)
+        # todo
+        # if lock:
+        #     if lock.lock_type == LockType.R:
+        #         if len(lock.transaction_list) == 1 and \
+        #                 transaction_id in lock.transaction_list:
+        #             pass
 
     def write(self, transaction_id, variable_id, value):
         pass
