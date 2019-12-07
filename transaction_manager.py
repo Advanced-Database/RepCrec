@@ -18,10 +18,10 @@ class Transaction:
 
 
 class Operation:
-    def __init__(self, command, transaction_id, variable, value=None):
+    def __init__(self, command, transaction_id, variable_id, value=None):
         self.command = command
         self.transaction_id = transaction_id
-        self.variable = variable
+        self.variable_id = variable_id
         self.value = value
 
 
@@ -72,31 +72,31 @@ class TransactionManager:
         else:
             raise InvalidInstructionError("Unknown instruction")
 
-    def add_read_operation(self, transaction_id, variable):
+    def add_read_operation(self, transaction_id, variable_id):
         self.operation_queue.append(
-            Operation("R", transaction_id, variable))
+            Operation("R", transaction_id, variable_id))
 
-    def add_write_operation(self, transaction_id, variable, value):
+    def add_write_operation(self, transaction_id, variable_id, value):
         self.operation_queue.append(
-            Operation("W", transaction_id, variable, value))
+            Operation("W", transaction_id, variable_id, value))
 
     def execute_operation_queue(self):
         for op in list(self.operation_queue):
             success = False
             if op.command == "R":
                 if self.transaction_table[op.transaction_id].is_ro:
-                    success = self.read_snapshot(op.transaction_id, op.variable)
+                    success = self.read_snapshot(op.transaction_id, op.variable_id)
                 else:
-                    success = self.read(op.transaction_id, op.variable)
+                    success = self.read(op.transaction_id, op.variable_id)
             elif op.command == "W":
-                success = self.write(op.transaction_id, op.variable, op.value)
+                success = self.write(op.transaction_id, op.variable_id, op.value)
             else:
                 print("Invalid operation!")
             if success:
                 self.operation_queue.remove(op)
 
     # -----------------------------------------------------
-    # -------------- Operation Executions -----------------
+    # -------------- Instruction Executions ---------------
     # -----------------------------------------------------
     def begin(self, transaction_id):
         if self.transaction_table.get(transaction_id):
@@ -114,43 +114,46 @@ class TransactionManager:
             self.ts, transaction_id, True)
         print("{} begins and is read-only".format(transaction_id))
 
-    def read_snapshot(self, transaction_id, variable):
+    def read_snapshot(self, transaction_id, variable_id):
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
         ts = self.transaction_table[transaction_id].ts
         for dm in self.data_manager_nodes:
             if dm.is_up:
-                result = dm.read_snapshot(variable, ts)
+                result = dm.read_snapshot(variable_id, ts)
                 if result.success:
-                    print("{} read {}.{}: {}".format(
-                        transaction_id, variable, dm.site_id, result.value))
+                    print("{} read_ro {}.{}: {}".format(
+                        transaction_id, variable_id, dm.site_id, result.value))
                     return True
         return False
 
-    def read(self, transaction_id, variable):
+    def read(self, transaction_id, variable_id):
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
 
         for dm in self.data_manager_nodes:
-            if dm.get_read_lock(variable):
-                value = dm.read(variable)
-                print("{} read {}.{}: {}".format(
-                    transaction_id, variable, dm.site_id, value))
-                return True
+            if dm.is_up:
+                result = dm.read(transaction_id, variable_id)
+                if result.success:
+                    self.transaction_table[
+                        transaction_id].sites_accessed.append(dm.site_id)
+                    print("{} read {}.{}: {}".format(
+                        transaction_id, variable_id, dm.site_id, result.value))
+                    return True
         return False
 
-    def write(self, transaction_id, variable, value):
+    def write(self, transaction_id, variable_id, value):
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
 
         for dm in self.data_manager_nodes:
-            if dm.get_exclusive_lock(variable):
-                dm.write(variable, value)
+            if dm.get_exclusive_lock(variable_id):
+                dm.write(variable_id, value)
                 print(transaction_id + " write " +
-                      variable + " with value '" + value + "'")
+                      variable_id + " with value '" + value + "'")
         '''
         TO-DO:
         4. Two phases rules: Acquire locks as you go, release locks at end. Implies acquire all locks before releasing any. Based on exclusive locks
@@ -176,10 +179,10 @@ class TransactionManager:
         3. If a transaction accesses an item (really accesses it, not just request a lock) at a site and the site then fails, then transaction should continue to execute and then abort only at its commit time.
         '''
         # for dm in self.data_manager_nodes:
-        #     for variable in dm.lock_table.keys():
-        #         lock_item = dm.lock_table[variable]
+        #     for variable_id in dm.lock_table.keys():
+        #         lock_item = dm.lock_table[variable_id]
         #         if lock_item[0] == transaction_id and lock_item[1] == 'x':
-        #             dm.data[variable] = lock_item[2]
+        #             dm.data[variable_id] = lock_item[2]
         # if dm.is_up:
         # else:
 
