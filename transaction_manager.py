@@ -198,15 +198,18 @@ class TransactionManager:
 
     def end(self, transaction_id, ts):
         if self.transaction_table[transaction_id].will_abort:
-            self.abort(transaction_id)
+            self.abort(transaction_id, True)
         else:
             self.commit(transaction_id, ts)
 
-    def abort(self, transaction_id):
+    def abort(self, transaction_id, due_to_site_fail=False):
         for dm in self.data_manager_list:
             dm.abort(transaction_id)
         self.transaction_table.pop(transaction_id)
-        print("{} aborts!".format(transaction_id))
+        if due_to_site_fail:
+            print("{} aborts! [Site Failure]".format(transaction_id))
+        else:
+            print("{} aborts! [Deadlock]".format(transaction_id))
 
     def commit(self, transaction_id, commit_ts):
         for dm in self.data_manager_list:
