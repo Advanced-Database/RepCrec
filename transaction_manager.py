@@ -1,6 +1,6 @@
-import re
 from data_manager import DataManager
 from parser import Parser
+from collections import defaultdict
 
 
 class InvalidInstructionError(Exception):
@@ -32,7 +32,6 @@ class TransactionManager:
     operation_queue = []
 
     def __init__(self):
-        # print("Init Transaction Manager!")
         self.data_manager_nodes = []
         for site_id in range(1, 11):
             self.data_manager_nodes.append(DataManager(site_id))
@@ -43,6 +42,8 @@ class TransactionManager:
             command = li.pop(0)
             try:
                 print("----- Timestamp: " + str(self.ts) + " -----")
+                if self.deadlock_detection():
+                    self.execute_operation_queue()
                 self.process_instruction(command, li)
                 self.execute_operation_queue()
                 self.ts += 1
@@ -141,7 +142,7 @@ class TransactionManager:
                 if result.success:
                     self.transaction_table[
                         transaction_id].sites_accessed.append(dm.site_id)
-                    print("{} read {}.{}: {}".format(
+                    print("{} reads {}.{}: {}".format(
                         transaction_id, variable_id, dm.site_id, result.value))
                     return True
         return False
@@ -166,7 +167,7 @@ class TransactionManager:
                     dm.write(transaction_id, variable_id, value)
                     self.transaction_table[
                         transaction_id].sites_accessed.append(dm.site_id)
-                    print("{} write {}.{} with value {}".format(
+                    print("{} writes {}.{} with value {}".format(
                         transaction_id, variable_id, dm.site_id, value))
             return True
         return False
@@ -222,17 +223,38 @@ class TransactionManager:
     # -----------------------------------------------------
 
     def deadlock_detection(self):
-        print("Execute deadlock detection!")
-        '''
-        TO-DO:
-        1. Construct a blocking (waits-for) graph. Give each transaction a unique timestamp. Require that numbers given to transactions always increase.
-        2. Detect deadlocks using cycle detection and abort the youngest transaction in the cycle.
-        3. Cycle detection need not happen frequently. Deadlock doesnt go away.
-        '''
-
-    def monitor_site_status(self):
+        # print("Executing deadlock detection!")
+        blocking_graph = defaultdict(set)
         for dm in self.data_manager_nodes:
             if dm.is_up:
-                pass
-            else:
-                pass
+                graph = dm.generate_blocking_graph()
+                for node, adj_list in graph.items():
+                    blocking_graph[node].update(adj_list)
+        # print(dict(blocking_graph))
+        youngest_t_id = None
+        youngest_ts = -1
+        for node in list(blocking_graph.keys()):
+            visited = set()
+            if has_cycle(node, node, visited, blocking_graph):
+                if self.transaction_table[node].ts > youngest_ts:
+                    youngest_t_id = node
+                    youngest_ts = self.transaction_table[node].ts
+        if youngest_t_id:
+            print("Deadlock detected: {} will abort".format(youngest_t_id))
+            self.abort(youngest_t_id)
+            return True
+        return False
+
+    def abort(self, transaction_id):
+        print("{} aborts!".format(transaction_id))
+
+
+def has_cycle(current, root, visited, blocking_graph):
+    visited.add(current)
+    for neighbour in blocking_graph[current]:
+        if neighbour == root:
+            return True
+        if neighbour not in visited:
+            if has_cycle(neighbour, root, visited, blocking_graph):
+                return True
+    return False

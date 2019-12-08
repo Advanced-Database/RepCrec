@@ -1,4 +1,5 @@
 from enum import Enum
+from collections import defaultdict
 
 
 class CommitValue:
@@ -129,7 +130,6 @@ class DataManager:
 
         self.fail_ts_list = []  # latest fail at end
         self.recover_ts_list = []  # latest recover at end
-        self.uncommitted_write_list = {}
 
     def has_variable(self, variable_id):
         return self.data.get(variable_id)
@@ -247,7 +247,7 @@ class DataManager:
 
     def dump(self, idx):
         result = "site " + str(idx) + " - "
-        for key in sorted(self.data.keys()):
+        for key in self.data.keys():
             result += key + ": " + \
                       str(self.data[key].committed_value_list[0].value) + ", "
         return result
@@ -263,3 +263,46 @@ class DataManager:
         # todo:
         #   non-replicated: available to read and write.
         #   replicated: Allow writes, Reject reads until a write has occurred.
+
+    def generate_blocking_graph(self):
+        def current_blocks_queued(current_lock, queued_lock):
+            if current_lock.lock_type == LockType.R:
+                if queued_lock.lock_type.R or \
+                        (len(current_lock.transaction_id_set) == 1 and
+                         queued_lock.transaction_id in
+                         current_lock.transaction_id_set):
+                    return False
+                return True
+            # current lock is W-lock
+            return not current_lock.transaction_id == queued_lock.transaction_id
+
+        def queued_blocks_queued(queued_lock_left, queued_lock_right):
+            if queued_lock_left.lock_type == LockType.R and \
+                    queued_lock_right.lock_type.R:
+                return False
+            # at least one lock is W-lock
+            return not queued_lock_left.transaction_id == queued_lock_right.transaction_id
+
+        graph = defaultdict(set)
+        for variable_id, lm in self.lock_table.items():
+            if not lm.current_lock or not lm.queue:
+                continue
+            for ql in lm.queue:
+                if current_blocks_queued(lm.current_lock, ql):
+                    if lm.current_lock.lock_type == LockType.R:
+                        for t_id in lm.current_lock.transaction_id_set:
+                            if t_id != ql.transaction_id:
+                                graph[ql.transaction_id].add(t_id)
+                    else:
+                        if lm.current_lock.transaction_id != ql.transaction_id:
+                            graph[ql.transaction_id].add(
+                                lm.current_lock.transaction_id)
+            for i in range(len(lm.queue)):
+                for j in range(i):
+                    if not queued_blocks_queued(lm.queue[j], lm.queue[i]):
+                        # if lm.queue[j].transaction_id != lm.queue[i
+                        # ].transaction_id:
+                        graph[lm.queue[i].transaction_id].add(
+                            lm.queue[j].transaction_id)
+        # print("graph {}={}".format(self.site_id, dict(graph)))
+        return graph
