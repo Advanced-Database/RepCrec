@@ -410,7 +410,7 @@ class DataManager:
             for i in range(len(lm.queue)):
                 for j in range(i):
                     # print("queued_blocks_queued({}, {})".format(lm.queue[j], lm.queue[i]))
-                    if not queued_blocks_queued(lm.queue[j], lm.queue[i]):
+                    if queued_blocks_queued(lm.queue[j], lm.queue[i]):
                         # if lm.queue[j].transaction_id != lm.queue[i
                         # ].transaction_id:
                         graph[lm.queue[i].transaction_id].add(
