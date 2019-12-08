@@ -125,20 +125,20 @@ class DataManager:
         return Result(False)
 
     def read(self, transaction_id, variable_id):
-        v = self.data.get(variable_id)
+        v: Variable = self.data[variable_id]
         # todo: site just recovered, variable not readable
-        if v and v.is_readable:
-            lock_manager: LockManager = self.lock_table[variable_id]
-            current_lock = lock_manager.current_lock
+        if v.is_readable:
+            lm: LockManager = self.lock_table[variable_id]
+            current_lock = lm.current_lock
             if current_lock:
                 if current_lock.lock_type == LockType.R:
                     if transaction_id in current_lock.transaction_id_set:
                         return Result(True, v.get_last_committed_value())
-                    if not lock_manager.has_queued_write_lock():
-                        lock_manager.share_read_lock(transaction_id)
+                    if not lm.has_queued_write_lock():
+                        lm.share_read_lock(transaction_id)
                         return Result(True, v.get_last_committed_value())
                     # There is a queued W-lock
-                    lock_manager.add_to_queue(
+                    lm.add_to_queue(
                         QueuedLock(variable_id, transaction_id, LockType.R))
                     return Result(False)
                 # current_lock.lock_type == LockType.W
@@ -148,22 +148,28 @@ class DataManager:
                     # but the new value is not committed yet
                     return Result(True, v.get_temp_value())
                 # Another transaction is holding a W-lock
-                lock_manager.add_to_queue(
+                lm.add_to_queue(
                     QueuedLock(variable_id, transaction_id, LockType.R))
                 return Result(False)
             # No existing lock on the variable, create one
-            lock_manager.set_read_lock(ReadLock(variable_id, transaction_id))
+            lm.set_read_lock(ReadLock(variable_id, transaction_id))
             return Result(True, v.get_last_committed_value())
         return Result(False)
 
     def can_get_write_lock(self, transaction_id, variable_id):
-        lock = self.lock_table.get(variable_id)
-        # todo
-        # if lock:
-        #     if lock.lock_type == LockType.R:
-        #         if len(lock.transaction_list) == 1 and \
-        #                 transaction_id in lock.transaction_list:
-        #             pass
+        v: Variable = self.data[variable_id]
+        lm: LockManager = self.lock_table[variable_id]
+        current_lock = lm.current_lock
+        if current_lock:
+            if current_lock.lock_type == LockType.R:
+                if len(current_lock.transaction_list) != 1:
+                    # Multiple transactions holding R-lock on the same variable
+                    return False
+                if transaction_id in current_lock.transaction_id_set:
+                    # Only this transaction holds R-lock
+                    # Can it be promoted to W-lock?
+                    pass
+        # todo: not finished
 
     def write(self, transaction_id, variable_id, value):
         pass
