@@ -63,15 +63,34 @@ class LockManager:
         self.queue = []  # list of QueuedLock
 
     def set_read_lock(self, read_lock):
-        if self.queue:
-            raise RuntimeError(
-                "Unresolved queued locks when current lock is None!")
+        # if self.queue:
+        #     raise RuntimeError(
+        #         "Unresolved queued locks when current lock is None!")
         self.current_lock = read_lock
+
+    def set_write_lock(self, write_lock):
+        # if self.queue:
+        #     raise RuntimeError(
+        #         "Unresolved queued locks when current lock is None!")
+        self.current_lock = write_lock
 
     def share_read_lock(self, transaction_id):
         if not self.current_lock.lock_type == LockType.R:
             raise RuntimeError("Attempt to share W-lock!")
         self.current_lock.transaction_id_set.add(transaction_id)
+
+    def promote_to_write_lock(self, write_lock):
+        if not self.current_lock:
+            raise RuntimeError("No current lock!")
+        if not self.current_lock.lock_type == LockType.R:
+            raise RuntimeError("Current lock is not R-lock!")
+        if len(self.current_lock.transaction_id_set) != 1:
+            raise RuntimeError("Other transaction sharing R-lock!")
+        if write_lock.transaction_id not in \
+                self.current_lock.transaction_id_set:
+            raise RuntimeError("{} is not holding current R-lock!".format(
+                write_lock.transaction_id))
+        self.current_lock = write_lock
 
     def add_to_queue(self, new_lock: QueuedLock):
         for queued_lock in self.queue:
@@ -169,19 +188,25 @@ class DataManager:
                     lm.add_to_queue(
                         QueuedLock(variable_id, transaction_id, LockType.W))
                     return False
+                # Only one transaction holding an R-lock
+                # Which one?
                 if transaction_id in current_lock.transaction_id_set:
-                    # Only this transaction holds R-lock
+                    # Only this transaction holds the R-lock
                     # Can it be promoted to W-lock?
                     if lm.has_other_queued_write_lock(transaction_id):
                         lm.add_to_queue(
                             QueuedLock(variable_id, transaction_id, LockType.W))
                         return False
                     return True
-            # current_lock is W-lock
+                # Some other transaction is holding the R-lock
+                lm.add_to_queue(
+                    QueuedLock(variable_id, transaction_id, LockType.W))
+                return False
+            # current lock is W-lock
             if transaction_id == current_lock.transaction_id:
                 # This transaction already holds a W-lock
                 return True
-            # Another transaction is holding a W-lock
+            # Another transaction is holding W-lock
             lm.add_to_queue(
                 QueuedLock(variable_id, transaction_id, LockType.W))
             return False
@@ -194,8 +219,31 @@ class DataManager:
         current_lock = lm.current_lock
         if current_lock:
             if current_lock.lock_type == LockType.R:
+                if len(current_lock.transaction_list) != 1:
+                    raise RuntimeError("Cannot promote to W-Lock: "
+                                       "other transactions are holding R-lock!")
                 if transaction_id in current_lock.transaction_id_set:
-                    pass
+                    if lm.has_other_queued_write_lock(transaction_id):
+                        raise RuntimeError("Cannot promote to W-Lock: "
+                                           "other R-lock is waiting in queue!")
+                    lm.promote_to_write_lock(
+                        WriteLock(variable_id, transaction_id))
+                    v.temp_value = value
+                    return
+                raise RuntimeError("Cannot promote to W-Lock: "
+                                   "R-lock is not held by this transaction!")
+            # current lock is W-lock
+            if transaction_id == current_lock.transaction_id:
+                # This transaction already holds a W-lock
+                v.temp_value = value
+                return
+            # Another transaction is holding W-lock
+            raise RuntimeError("Cannot get W-Lock: "
+                               "another transaction is holding W-lock!")
+        # No existing lock on the variable
+        lm.set_write_lock(WriteLock(variable_id, transaction_id))
+        v.temp_value = value
+        v.is_readable = True
 
     def dump(self, idx):
         result = "site " + str(idx) + " - "

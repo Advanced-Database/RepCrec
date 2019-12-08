@@ -159,6 +159,8 @@ class TransactionManager:
                 if not result:
                     can_get_all_write_locks = False
         if not all_relevant_sites_down and can_get_all_write_locks:
+            print("{} will write {} with value {}".format(
+                transaction_id, variable_id, value))
             for dm in self.data_manager_nodes:
                 if dm.is_up and dm.has_variable(variable_id):
                     dm.write(transaction_id, variable_id, value)
