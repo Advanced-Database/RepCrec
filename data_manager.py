@@ -275,12 +275,24 @@ class DataManager:
         lm.set_write_lock(WriteLock(variable_id, transaction_id))
         v.temp_value = TempValue(value, transaction_id)
 
-    def dump(self, idx):
-        result = "site " + str(idx) + " - "
-        for key in self.data.keys():
-            result += key + ": " + \
-                      str(self.data[key].committed_value_list[0].value) + ", "
-        return result
+    def dump(self):
+        if self.is_up:
+            print("Site {} [UP]:".format(self.site_id))
+        else:
+            print("Site {} [DOWN]:".format(self.site_id))
+
+        replicated = ""
+        non_replicated = ""
+        for v in self.data.values():
+            v_str = "{}: {}, ".format(v.variable_id,
+                                      v.get_last_committed_value())
+            if v.is_replicated:
+                replicated += v_str
+            else:
+                non_replicated += v_str
+        print("     " + replicated)
+        if non_replicated:
+            print("     " + non_replicated)
 
     def abort(self, transaction_id):
         for lm in self.lock_table.values():

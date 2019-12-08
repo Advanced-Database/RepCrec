@@ -187,14 +187,9 @@ class TransactionManager:
         return False
 
     def dump(self):
-        print("Dump all data at all sites!")
+        print("Dump:")
         for dm in self.data_manager_list:
-            if dm.is_up:
-                print("Site " + str(dm.site_id) + " is up")
-            else:
-                print("Site " + str(dm.site_id) + "'s status: Down")
-
-            print(dm.dump(dm.site_id))
+            dm.dump()
 
     def end(self, transaction_id, ts):
         if self.transaction_table[transaction_id].will_abort:
