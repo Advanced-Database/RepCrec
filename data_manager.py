@@ -81,9 +81,12 @@ class LockManager:
                     return
         self.queue.append(new_lock)
 
-    def has_queued_write_lock(self):
+    def has_other_queued_write_lock(self, transaction_id=None):
         for queued_lock in self.queue:
             if queued_lock.lock_type == LockType.W:
+                if transaction_id and \
+                        queued_lock.transaction_id == transaction_id:
+                    continue
                 return True
         return False
 
@@ -134,14 +137,14 @@ class DataManager:
                 if current_lock.lock_type == LockType.R:
                     if transaction_id in current_lock.transaction_id_set:
                         return Result(True, v.get_last_committed_value())
-                    if not lm.has_queued_write_lock():
+                    if not lm.has_other_queued_write_lock():
                         lm.share_read_lock(transaction_id)
                         return Result(True, v.get_last_committed_value())
                     # There is a queued W-lock
                     lm.add_to_queue(
                         QueuedLock(variable_id, transaction_id, LockType.R))
                     return Result(False)
-                # current_lock.lock_type == LockType.W
+                # current_lock is W-lock
                 if transaction_id == current_lock.transaction_id:
                     # This transaction holds a W-lock
                     # It has written to the variable
@@ -168,8 +171,15 @@ class DataManager:
                 if transaction_id in current_lock.transaction_id_set:
                     # Only this transaction holds R-lock
                     # Can it be promoted to W-lock?
-                    pass
-        # todo: not finished
+                    return not lm.has_other_queued_write_lock(transaction_id)
+            # current_lock is W-lock
+            if transaction_id == current_lock.transaction_id:
+                # This transaction already holds a W-lock
+                return True
+            # Another transaction is holding a W-lock
+            return False
+        # No existing lock on the variable
+        return True
 
     def write(self, transaction_id, variable_id, value):
         pass
