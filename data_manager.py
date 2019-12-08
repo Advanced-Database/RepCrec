@@ -16,7 +16,7 @@ class TempValue:
 
 class Variable:
     def __init__(self, variable_id, init_value, is_replicated):
-        self._variable_id = variable_id
+        self.variable_id = variable_id
         self.committed_value_list = [init_value]  # latest commit at front
         self.is_replicated = is_replicated
         self.temp_value = None
@@ -47,35 +47,37 @@ class LockType(Enum):
 
 class ReadLock:
     def __init__(self, variable_id, transaction_id):
-        self._variable_id = variable_id
+        self.variable_id = variable_id
         self.transaction_id_set = {transaction_id}
         self.lock_type = LockType.R
 
 
 class WriteLock:
     def __init__(self, variable_id, transaction_id):
-        self._variable_id = variable_id
+        self.variable_id = variable_id
         self.transaction_id = transaction_id
         self.lock_type = LockType.W
 
 
 class QueuedLock:
     def __init__(self, variable_id, transaction_id, lock_type: LockType):
-        self._variable_id = variable_id
+        self.variable_id = variable_id
         self.transaction_id = transaction_id
         self.lock_type = lock_type
 
     def __repr__(self):
         return "({}, {}, {})".format(
-            self.transaction_id, self._variable_id, self.lock_type)
+            self.transaction_id, self.variable_id, self.lock_type)
 
 
 class LockManager:
     def __init__(self, variable_id):
-        self._variable_id = variable_id
+        self.variable_id = variable_id
         self.current_lock = None
         self.queue = []  # list of QueuedLock
 
+    # todo: maybe combine set_read_lock, set_write_lock,
+    #       and promote_to_write_lock into set_current_lock
     def set_read_lock(self, read_lock):
         # if self.queue:
         #     raise RuntimeError(
@@ -87,11 +89,6 @@ class LockManager:
         #     raise RuntimeError(
         #         "Unresolved queued locks when current lock is None!")
         self.current_lock = write_lock
-
-    def share_read_lock(self, transaction_id):
-        if not self.current_lock.lock_type == LockType.R:
-            raise RuntimeError("Attempt to share W-lock!")
-        self.current_lock.transaction_id_set.add(transaction_id)
 
     def promote_to_write_lock(self, write_lock):
         if not self.current_lock:
@@ -105,6 +102,11 @@ class LockManager:
             raise RuntimeError("{} is not holding current R-lock!".format(
                 write_lock.transaction_id))
         self.current_lock = write_lock
+
+    def share_read_lock(self, transaction_id):
+        if not self.current_lock.lock_type == LockType.R:
+            raise RuntimeError("Attempt to share W-lock!")
+        self.current_lock.transaction_id_set.add(transaction_id)
 
     def add_to_queue(self, new_lock: QueuedLock):
         for queued_lock in self.queue:
@@ -278,7 +280,6 @@ class DataManager:
 
     def abort(self, transaction_id):
         for lm in self.lock_table.values():
-            # print("{}, {}".format(variable_id, lm.current_lock))
             # release current lock held by this transaction
             lm.release_current_lock_by_transaction(transaction_id)
             # remove queued locks of this transaction
@@ -306,7 +307,32 @@ class DataManager:
         self.resolve_lock_table()
 
     def resolve_lock_table(self):
-        pass
+        for v, lm in self.lock_table.items():
+            if lm.queue:
+                if not lm.current_lock:
+                    # current lock is None
+                    # pop the first queued lock and add to
+                    first_ql = lm.queue.pop(0)
+                    if first_ql.lock_type == LockType.R:
+                        lm.set_read_lock(ReadLock(
+                            first_ql.variable_id, first_ql.transaction_id))
+                    else:
+                        lm.set_write_lock(WriteLock(
+                            first_ql.variable_id, first_ql.transaction_id))
+                if lm.current_lock.lock_type == LockType.R:
+                    # current lock is R-lock
+                    # share R-lock with leading R-queued-locks
+                    for ql in list(lm.queue):
+                        if ql.lock_type == LockType.W:
+                            if len(lm.current_lock.transaction_id_set) == 1 \
+                                    and ql.transaction_id in \
+                                    lm.current_lock.transaction_id_set:
+                                lm.promote_to_write_lock(WriteLock(
+                                    ql.variable_id, ql.transaction_id))
+                                lm.queue.remove(ql)
+                            break
+                        lm.share_read_lock(ql.transaction_id)
+                        lm.queue.remove(ql)
 
     def fail(self, ts):
         self.is_up = False
