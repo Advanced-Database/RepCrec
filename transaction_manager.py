@@ -202,9 +202,9 @@ class TransactionManager:
             dm.abort(transaction_id)
         self.transaction_table.pop(transaction_id)
         if due_to_site_fail:
-            print("{} aborts! [Site Failure]".format(transaction_id))
+            print("{} aborts! (Due to site failure)".format(transaction_id))
         else:
-            print("{} aborts! [Deadlock]".format(transaction_id))
+            print("{} aborts! (Due to deadlock)".format(transaction_id))
 
     def commit(self, transaction_id, commit_ts):
         for dm in self.data_manager_list:
