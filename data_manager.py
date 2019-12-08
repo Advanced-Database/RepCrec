@@ -51,12 +51,20 @@ class ReadLock:
         self.transaction_id_set = {transaction_id}
         self.lock_type = LockType.R
 
+    def __repr__(self):
+        return "({}, {}, {})".format(
+            self.transaction_id_set, self.variable_id, self.lock_type)
+
 
 class WriteLock:
     def __init__(self, variable_id, transaction_id):
         self.variable_id = variable_id
         self.transaction_id = transaction_id
         self.lock_type = LockType.W
+
+    def __repr__(self):
+        return "({}, {}, {})".format(
+            self.transaction_id, self.variable_id, self.lock_type)
 
 
 class QueuedLock:
