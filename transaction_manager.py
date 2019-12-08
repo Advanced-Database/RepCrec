@@ -74,9 +74,9 @@ class TransactionManager:
         elif command == "end":
             self.end(args[0], self.ts)
         elif command == "fail":
-            self.fail(args[0])
+            self.fail(int(args[0]))
         elif command == "recover":
-            self.recover(args[0])
+            self.recover(int(args[0]))
         else:
             raise InvalidInstructionError("Unknown instruction")
 
@@ -215,7 +215,7 @@ class TransactionManager:
         print("{} commits!".format(transaction_id))
 
     def fail(self, site_id):
-        dm = self.data_manager_list[int(site_id) - 1]
+        dm = self.data_manager_list[site_id - 1]
         if not dm.is_up:
             raise InvalidInstructionError(
                 "Site {} is already down".format(site_id))
@@ -227,7 +227,7 @@ class TransactionManager:
                 t.will_abort = True
 
     def recover(self, site_id):
-        dm = self.data_manager_list[int(site_id) - 1]
+        dm = self.data_manager_list[site_id - 1]
         if dm.is_up:
             raise InvalidInstructionError(
                 "Site {} is already up".format(site_id))

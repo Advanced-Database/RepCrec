@@ -145,7 +145,7 @@ class LockManager:
 
 class DataManager:
     def __init__(self, site_id):
-        self.site_id = site_id
+        self.site_id = site_id  # int
         self.is_up = True
         self.data = {}
         self.lock_table = {}
