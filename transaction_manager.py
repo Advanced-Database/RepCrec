@@ -155,7 +155,7 @@ class TransactionManager:
         for dm in self.data_manager_nodes:
             if dm.is_up and dm.has_variable(variable_id):
                 all_relevant_sites_down = False
-                result = dm.can_get_write_lock(transaction_id, variable_id)
+                result = dm.get_write_lock(transaction_id, variable_id)
                 if not result:
                     can_get_all_write_locks = False
         if not all_relevant_sites_down and can_get_all_write_locks:

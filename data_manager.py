@@ -159,30 +159,43 @@ class DataManager:
             return Result(True, v.get_last_committed_value())
         return Result(False)
 
-    def can_get_write_lock(self, transaction_id, variable_id):
-        v: Variable = self.data[variable_id]
+    def get_write_lock(self, transaction_id, variable_id):
         lm: LockManager = self.lock_table[variable_id]
         current_lock = lm.current_lock
         if current_lock:
             if current_lock.lock_type == LockType.R:
                 if len(current_lock.transaction_list) != 1:
                     # Multiple transactions holding R-lock on the same variable
+                    lm.add_to_queue(
+                        QueuedLock(variable_id, transaction_id, LockType.W))
                     return False
                 if transaction_id in current_lock.transaction_id_set:
                     # Only this transaction holds R-lock
                     # Can it be promoted to W-lock?
-                    return not lm.has_other_queued_write_lock(transaction_id)
+                    if lm.has_other_queued_write_lock(transaction_id):
+                        lm.add_to_queue(
+                            QueuedLock(variable_id, transaction_id, LockType.W))
+                        return False
+                    return True
             # current_lock is W-lock
             if transaction_id == current_lock.transaction_id:
                 # This transaction already holds a W-lock
                 return True
             # Another transaction is holding a W-lock
+            lm.add_to_queue(
+                QueuedLock(variable_id, transaction_id, LockType.W))
             return False
         # No existing lock on the variable
         return True
 
     def write(self, transaction_id, variable_id, value):
-        pass
+        v: Variable = self.data[variable_id]
+        lm: LockManager = self.lock_table[variable_id]
+        current_lock = lm.current_lock
+        if current_lock:
+            if current_lock.lock_type == LockType.R:
+                if transaction_id in current_lock.transaction_id_set:
+                    pass
 
     def dump(self, idx):
         result = "site " + str(idx) + " - "
