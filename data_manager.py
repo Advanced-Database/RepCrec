@@ -210,7 +210,7 @@ class DataManager:
         current_lock = lm.current_lock
         if current_lock:
             if current_lock.lock_type == LockType.R:
-                if len(current_lock.transaction_list) != 1:
+                if len(current_lock.transaction_id_set) != 1:
                     # Multiple transactions holding R-lock on the same variable
                     lm.add_to_queue(
                         QueuedLock(variable_id, transaction_id, LockType.W))
@@ -246,7 +246,7 @@ class DataManager:
         current_lock = lm.current_lock
         if current_lock:
             if current_lock.lock_type == LockType.R:
-                if len(current_lock.transaction_list) != 1:
+                if len(current_lock.transaction_id_set) != 1:
                     raise RuntimeError("Cannot promote to W-Lock: "
                                        "other transactions are holding R-lock!")
                 if transaction_id in current_lock.transaction_id_set:
