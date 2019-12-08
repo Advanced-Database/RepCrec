@@ -220,7 +220,7 @@ class TransactionManager:
             raise InvalidInstructionError(
                 "Site {} is already down".format(site_id))
         dm.fail(self.ts)
-        print("Site " + site_id + " fails")
+        print("Site {} fails".format(site_id))
         for t in self.transaction_table.values():
             if (not t.is_ro) and (not t.will_abort) and (
                     site_id in t.sites_accessed):
@@ -232,7 +232,7 @@ class TransactionManager:
             raise InvalidInstructionError(
                 "Site {} is already up".format(site_id))
         dm.recover(self.ts)
-        print("Site " + site_id + " recovers")
+        print("Site {} recovers".format(site_id))
 
     # -----------------------------------------------------
     # -----------------------------------------------------
