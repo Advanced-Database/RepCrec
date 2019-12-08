@@ -1,14 +1,15 @@
 import transaction_manager
-
-FILE_PATH = 'testcase/test21'
+import sys
 
 if __name__ == '__main__':
-    # print("---------------- Begin to init TM and DM ----------------")
     tm = transaction_manager.TransactionManager()
-
-    with open(FILE_PATH, 'r') as fh:
-        # print("---------------- Begin to process instructions ----------------")
-        for line in fh:
-            if not tm.process_line(line):
-                print("[Abort!]")
-                break
+    file_path = sys.argv[1] if len(sys.argv) >= 2 else None
+    if file_path:
+        try:
+            with open(file_path, 'r') as file:
+                for line in file:
+                    if not tm.process_line(line):
+                        print("[Abort!]")
+                        break
+        except IOError:
+            print("[ERROR] Cannot open file: {}".format(file_path))
