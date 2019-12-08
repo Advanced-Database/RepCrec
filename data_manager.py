@@ -293,7 +293,7 @@ class DataManager:
             # release current lock held by this transaction
             lm.release_current_lock_by_transaction(transaction_id)
             # there shouldn't be any queued locks of this transaction
-            print(lm.queue)
+            # print(lm.queue)
             for ql in list(lm.queue):
                 if ql.transaction_id == transaction_id:
                     raise RuntimeError(

@@ -106,9 +106,9 @@ class TransactionManager:
                 else:
                     print("Invalid operation!")
                 if success:
-                    print("Executed op: {}".format(op))
+                    # print("Executed op: {}".format(op))
                     self.operation_queue.remove(op)
-        print("Remaining ops: {}".format(self.operation_queue))
+        # print("Remaining ops: {}".format(self.operation_queue))
 
     # -----------------------------------------------------
     # -------------- Instruction Executions ---------------
@@ -172,15 +172,17 @@ class TransactionManager:
                 if not result:
                     can_get_all_write_locks = False
         if not all_relevant_sites_down and can_get_all_write_locks:
-            print("{} will write {} with value {}".format(
-                transaction_id, variable_id, value))
+            # print("{} will write {} with value {}".format(
+            #     transaction_id, variable_id, value))
+            sites_written = []
             for dm in self.data_manager_list:
                 if dm.is_up and dm.has_variable(variable_id):
                     dm.write(transaction_id, variable_id, value)
                     self.transaction_table[
                         transaction_id].sites_accessed.append(dm.site_id)
-                    print("{} writes {}.{} with value {}".format(
-                        transaction_id, variable_id, dm.site_id, value))
+                    sites_written.append(dm.site_id)
+            print("{} writes {} with value {} to sites {}".format(
+                transaction_id, variable_id, value, sites_written))
             return True
         return False
 
