@@ -76,6 +76,10 @@ class LockManager:
         self.current_lock = None
         self.queue = []  # list of QueuedLock
 
+    def clear(self):
+        self.current_lock = None
+        self.queue = []
+
     # todo: maybe combine set_read_lock, set_write_lock,
     #       and promote_to_write_lock into set_current_lock
     def set_read_lock(self, read_lock):
@@ -337,7 +341,8 @@ class DataManager:
     def fail(self, ts):
         self.is_up = False
         self.fail_ts_list.append(ts)
-        self.lock_table.clear()
+        for lm in self.lock_table.values():
+            lm.clear()
 
     def recover(self, ts):
         self.is_up = True
