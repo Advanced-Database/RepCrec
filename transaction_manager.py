@@ -55,9 +55,11 @@ class TransactionManager:
                 self.execute_operation_queue()
                 self.ts += 1
             except InvalidInstructionError as e:
-                print("[INVALID_INSTRUCTION_ERROR] " + e.message +
+                print("[INVALID_INSTRUCTION] " + e.message +
                       ": " + line.strip())
                 return False
+            finally:
+                print()
         return True
 
     def process_instruction(self, command, args):
@@ -81,10 +83,16 @@ class TransactionManager:
             raise InvalidInstructionError("Unknown instruction")
 
     def add_read_operation(self, transaction_id, variable_id):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
         self.operation_queue.append(
             Operation("R", transaction_id, variable_id))
 
     def add_write_operation(self, transaction_id, variable_id, value):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
         self.operation_queue.append(
             Operation("W", transaction_id, variable_id, value))
 
@@ -147,7 +155,6 @@ class TransactionManager:
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
-
         for dm in self.data_manager_list:
             if dm.is_up and dm.has_variable(variable_id):
                 result = dm.read(transaction_id, variable_id)
@@ -197,6 +204,9 @@ class TransactionManager:
         #     self.transaction_table[transaction_id].sites_accessed))
         # print("{} will abort? {}".format(
         #     transaction_id, self.transaction_table[transaction_id].will_abort))
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
         if self.transaction_table[transaction_id].will_abort:
             self.abort(transaction_id, True)
         else:
