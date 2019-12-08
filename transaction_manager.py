@@ -90,20 +90,25 @@ class TransactionManager:
 
     def execute_operation_queue(self):
         for op in list(self.operation_queue):
-            success = False
-            if op.command == "R":
-                if self.transaction_table[op.transaction_id].is_ro:
-                    success = self.read_snapshot(op.transaction_id,
-                                                 op.variable_id)
-                else:
-                    success = self.read(op.transaction_id, op.variable_id)
-            elif op.command == "W":
-                success = self.write(op.transaction_id, op.variable_id,
-                                     op.value)
-            else:
-                print("Invalid operation!")
-            if success:
+            if not self.transaction_table.get(op.transaction_id):
                 self.operation_queue.remove(op)
+            else:
+                success = False
+                if op.command == "R":
+                    if self.transaction_table[op.transaction_id].is_ro:
+                        success = self.read_snapshot(op.transaction_id,
+                                                     op.variable_id)
+                    else:
+                        success = self.read(op.transaction_id, op.variable_id)
+                elif op.command == "W":
+                    success = self.write(op.transaction_id, op.variable_id,
+                                         op.value)
+                else:
+                    print("Invalid operation!")
+                if success:
+                    print("Executed op: {}".format(op))
+                    self.operation_queue.remove(op)
+        print("Remaining ops: {}".format(self.operation_queue))
 
     # -----------------------------------------------------
     # -------------- Instruction Executions ---------------
@@ -194,17 +199,18 @@ class TransactionManager:
             self.abort(transaction_id)
         else:
             self.commit(transaction_id)
-        self.transaction_table.pop(transaction_id)
 
     def abort(self, transaction_id):
-        print("{} aborts!".format(transaction_id))
         for dm in self.data_manager_list:
             dm.abort(transaction_id)
+        self.transaction_table.pop(transaction_id)
+        print("{} aborts!".format(transaction_id))
 
     def commit(self, transaction_id):
-        print(transaction_id + " commits!")
         for dm in self.data_manager_list:
             dm.commit(transaction_id)
+        self.transaction_table.pop(transaction_id)
+        print("{} commits!".format(transaction_id))
 
     def fail(self, site_id):
         dm = self.data_manager_list[int(site_id) - 1]
@@ -248,7 +254,7 @@ class TransactionManager:
                     youngest_t_id = node
                     youngest_ts = self.transaction_table[node].ts
         if youngest_t_id:
-            print("Deadlock detected: {} will abort".format(youngest_t_id))
+            print("Deadlock detected: aborting {}".format(youngest_t_id))
             self.abort(youngest_t_id)
             return True
         return False

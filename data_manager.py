@@ -252,9 +252,28 @@ class DataManager:
         return result
 
     def abort(self, transaction_id):
-        pass
+        for variable_id, lm in self.lock_table.items():
+            # print("{}, {}".format(variable_id, lm.current_lock))
+            # release current lock held by this transaction
+            if lm.current_lock:
+                if lm.current_lock.lock_type == LockType.R:
+                    if transaction_id in lm.current_lock.transaction_id_set:
+                        lm.current_lock.transaction_id_set.remove(transaction_id)
+                    if not len(lm.current_lock.transaction_id_set):
+                        lm.current_lock = None
+                else:
+                    if lm.current_lock.transaction_id == transaction_id:
+                        lm.current_lock = None
+            # remove queued locks of this transaction
+            for ql in list(lm.queue):
+                if ql.transaction_id == transaction_id:
+                    lm.queue.remove(ql)
+        self.resolve_lock_table()
 
     def commit(self, transaction_id):
+        pass
+
+    def resolve_lock_table(self):
         pass
 
     def fail(self, ts):
