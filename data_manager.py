@@ -119,11 +119,11 @@ class DataManager:
         self.lock_table = {}
         for v_idx in range(1, 21):
             variable_id = "x" + str(v_idx)
-            if v_idx % 2 == 0:
+            if v_idx % 2 == 0:  # replicated
                 self.data[variable_id] = Variable(
                     variable_id, CommitValue(v_idx * 10, 0), True)
                 self.lock_table[variable_id] = LockManager(variable_id)
-            elif v_idx % 10 + 1 == self.site_id:
+            elif v_idx % 10 + 1 == self.site_id:  # non-replicated
                 self.data[variable_id] = Variable(
                     variable_id, CommitValue(v_idx * 10, 0), False)
                 self.lock_table[variable_id] = LockManager(variable_id)
@@ -135,8 +135,8 @@ class DataManager:
         return self.data.get(variable_id)
 
     def read_snapshot(self, variable_id, ts):
-        v = self.data.get(variable_id)
-        if v:
+        v: Variable = self.data.get(variable_id)
+        if v.is_readable:
             for commit_value in v.committed_value_list:
                 if commit_value.commit_ts <= ts:
                     if v.is_replicated:
@@ -243,7 +243,6 @@ class DataManager:
         # No existing lock on the variable
         lm.set_write_lock(WriteLock(variable_id, transaction_id))
         v.temp_value = value
-        v.is_readable = True
 
     def dump(self, idx):
         result = "site " + str(idx) + " - "
@@ -251,6 +250,12 @@ class DataManager:
             result += key + ": " + \
                       str(self.data[key].committed_value_list[0].value) + ", "
         return result
+
+    def abort(self, transaction_id):
+        pass
+
+    def commit(self, transaction_id):
+        pass
 
     def fail(self, ts):
         self.is_up = False
@@ -260,9 +265,9 @@ class DataManager:
     def recover(self, ts):
         self.is_up = True
         self.recover_ts_list.append(ts)
-        # todo:
-        #   non-replicated: available to read and write.
-        #   replicated: Allow writes, Reject reads until a write has occurred.
+        for v in self.data.values():
+            if v.is_replicated:
+                v.is_readable = False
 
     def generate_blocking_graph(self):
         def current_blocks_queued(current_lock, queued_lock):

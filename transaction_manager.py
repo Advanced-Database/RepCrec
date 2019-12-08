@@ -24,6 +24,13 @@ class Operation:
         self.variable_id = variable_id
         self.value = value
 
+    def __repr__(self):
+        if self.value is None:
+            return "{}({},{})".format(self.command, self.transaction_id,
+                                      self.variable_id)
+        return "{}({},{},{})".format(self.command, self.transaction_id,
+                                     self.variable_id, self.value)
+
 
 class TransactionManager:
     parser = Parser()
@@ -32,9 +39,9 @@ class TransactionManager:
     operation_queue = []
 
     def __init__(self):
-        self.data_manager_nodes = []
+        self.data_manager_list = []
         for site_id in range(1, 11):
-            self.data_manager_nodes.append(DataManager(site_id))
+            self.data_manager_list.append(DataManager(site_id))
 
     def process_line(self, line):
         li = self.parser.parse_line(line)
@@ -122,8 +129,8 @@ class TransactionManager:
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
         ts = self.transaction_table[transaction_id].ts
-        for dm in self.data_manager_nodes:
-            if dm.is_up:
+        for dm in self.data_manager_list:
+            if dm.is_up and dm.has_variable(variable_id):
                 result = dm.read_snapshot(variable_id, ts)
                 if result.success:
                     print("{} read_ro {}.{}: {}".format(
@@ -136,7 +143,7 @@ class TransactionManager:
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
 
-        for dm in self.data_manager_nodes:
+        for dm in self.data_manager_list:
             if dm.is_up and dm.has_variable(variable_id):
                 result = dm.read(transaction_id, variable_id)
                 if result.success:
@@ -153,7 +160,7 @@ class TransactionManager:
                 "Transaction {} does not exist".format(transaction_id))
         all_relevant_sites_down = True
         can_get_all_write_locks = True
-        for dm in self.data_manager_nodes:
+        for dm in self.data_manager_list:
             if dm.is_up and dm.has_variable(variable_id):
                 all_relevant_sites_down = False
                 result = dm.get_write_lock(transaction_id, variable_id)
@@ -162,7 +169,7 @@ class TransactionManager:
         if not all_relevant_sites_down and can_get_all_write_locks:
             print("{} will write {} with value {}".format(
                 transaction_id, variable_id, value))
-            for dm in self.data_manager_nodes:
+            for dm in self.data_manager_list:
                 if dm.is_up and dm.has_variable(variable_id):
                     dm.write(transaction_id, variable_id, value)
                     self.transaction_table[
@@ -174,7 +181,7 @@ class TransactionManager:
 
     def dump(self):
         print("Dump all data at all sites!")
-        for dm in self.data_manager_nodes:
+        for dm in self.data_manager_list:
             if dm.is_up:
                 print("Site " + str(dm.site_id) + " is up")
             else:
@@ -183,39 +190,40 @@ class TransactionManager:
             print(dm.dump(dm.site_id))
 
     def end(self, transaction_id):
-        print(transaction_id + " ends (commits or aborts).")
-        '''
-        TO-DO:
-        1. At Commit time, for two phase locked transactions: ensure that all servers that you accessed (read or write) have been up since the first time they were accessed. Otherwise, abort. (Read-only transactions need not abort in this case.)
-        2. end(T1) causes your system to report whether T1 can commit in the format T1 commits or T1 aborts
-        3. If a transaction accesses an item (really accesses it, not just request a lock) at a site and the site then fails, then transaction should continue to execute and then abort only at its commit time.
-        '''
-        # for dm in self.data_manager_nodes:
-        #     for variable_id in dm.lock_table.keys():
-        #         lock_item = dm.lock_table[variable_id]
-        #         if lock_item[0] == transaction_id and lock_item[1] == 'x':
-        #             dm.data[variable_id] = lock_item[2]
-        # if dm.is_up:
-        # else:
+        if self.transaction_table[transaction_id].will_abort:
+            self.abort(transaction_id)
+        else:
+            self.commit(transaction_id)
+        self.transaction_table.pop(transaction_id)
+
+    def abort(self, transaction_id):
+        print("{} aborts!".format(transaction_id))
+        for dm in self.data_manager_list:
+            dm.abort(transaction_id)
+
+    def commit(self, transaction_id):
+        print(transaction_id + " commits!")
+        for dm in self.data_manager_list:
+            dm.commit(transaction_id)
 
     def fail(self, site_id):
-        site = self.data_manager_nodes[int(site_id) - 1]
-        if not site.is_up:
+        dm = self.data_manager_list[int(site_id) - 1]
+        if not dm.is_up:
             raise InvalidInstructionError(
                 "Site {} is already down".format(site_id))
-        site.fail(self.ts)
+        dm.fail(self.ts)
+        print("Site " + site_id + " fails")
         for t in self.transaction_table.values():
             if (not t.is_ro) and (not t.will_abort) and (
                     site_id in t.sites_accessed):
                 t.will_abort = True
-        print("Site " + site_id + " fails")
 
     def recover(self, site_id):
-        site = self.data_manager_nodes[int(site_id) - 1]
-        if site.is_up:
+        dm = self.data_manager_list[int(site_id) - 1]
+        if dm.is_up:
             raise InvalidInstructionError(
                 "Site {} is already up".format(site_id))
-        site.recover(self.ts)
+        dm.recover(self.ts)
         print("Site " + site_id + " recovers")
 
     # -----------------------------------------------------
@@ -225,7 +233,7 @@ class TransactionManager:
     def deadlock_detection(self):
         # print("Executing deadlock detection!")
         blocking_graph = defaultdict(set)
-        for dm in self.data_manager_nodes:
+        for dm in self.data_manager_list:
             if dm.is_up:
                 graph = dm.generate_blocking_graph()
                 for node, adj_list in graph.items():
@@ -244,9 +252,6 @@ class TransactionManager:
             self.abort(youngest_t_id)
             return True
         return False
-
-    def abort(self, transaction_id):
-        print("{} aborts!".format(transaction_id))
 
 
 def has_cycle(current, root, visited, blocking_graph):
