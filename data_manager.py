@@ -374,7 +374,7 @@ class DataManager:
     def generate_blocking_graph(self):
         def current_blocks_queued(current_lock, queued_lock):
             if current_lock.lock_type == LockType.R:
-                if queued_lock.lock_type.R or \
+                if queued_lock.lock_type == LockType.R or \
                         (len(current_lock.transaction_id_set) == 1 and
                          queued_lock.transaction_id in
                          current_lock.transaction_id_set):
@@ -385,7 +385,7 @@ class DataManager:
 
         def queued_blocks_queued(queued_lock_left, queued_lock_right):
             if queued_lock_left.lock_type == LockType.R and \
-                    queued_lock_right.lock_type.R:
+                    queued_lock_right.lock_type == LockType.R:
                 return False
             # at least one lock is W-lock
             return not queued_lock_left.transaction_id == queued_lock_right.transaction_id
