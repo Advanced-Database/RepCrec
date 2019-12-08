@@ -138,7 +138,7 @@ class TransactionManager:
             if dm.is_up and dm.has_variable(variable_id):
                 result = dm.read_snapshot(variable_id, ts)
                 if result.success:
-                    print("{} read_ro {}.{}: {}".format(
+                    print("{} (RO) reads {}.{}: {}".format(
                         transaction_id, variable_id, dm.site_id, result.value))
                     return True
         return False
