@@ -218,6 +218,7 @@ class DataManager:
         return Result(False)
 
     def get_write_lock(self, transaction_id, variable_id):
+        # print("get_write_lock on site {}".format(self.site_id))
         lm: LockManager = self.lock_table[variable_id]
         current_lock = lm.current_lock
         if current_lock:
@@ -394,6 +395,8 @@ class DataManager:
         for variable_id, lm in self.lock_table.items():
             if not lm.current_lock or not lm.queue:
                 continue
+            # print("current_lock: {}".format(lm.current_lock))
+            # print("queue: {}".format(lm.queue))
             for ql in lm.queue:
                 if current_blocks_queued(lm.current_lock, ql):
                     if lm.current_lock.lock_type == LockType.R:
@@ -406,6 +409,7 @@ class DataManager:
                                 lm.current_lock.transaction_id)
             for i in range(len(lm.queue)):
                 for j in range(i):
+                    # print("queued_blocks_queued({}, {})".format(lm.queue[j], lm.queue[i]))
                     if not queued_blocks_queued(lm.queue[j], lm.queue[i]):
                         # if lm.queue[j].transaction_id != lm.queue[i
                         # ].transaction_id:

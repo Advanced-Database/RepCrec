@@ -192,6 +192,11 @@ class TransactionManager:
             dm.dump()
 
     def end(self, transaction_id, ts):
+        # print("{} accessed sites {}".format(
+        #     transaction_id,
+        #     self.transaction_table[transaction_id].sites_accessed))
+        # print("{} will abort? {}".format(
+        #     transaction_id, self.transaction_table[transaction_id].will_abort))
         if self.transaction_table[transaction_id].will_abort:
             self.abort(transaction_id, True)
         else:
@@ -202,9 +207,9 @@ class TransactionManager:
             dm.abort(transaction_id)
         self.transaction_table.pop(transaction_id)
         if due_to_site_fail:
-            print("{} aborts! (Due to site failure)".format(transaction_id))
+            print("{} aborts! (due to site failure)".format(transaction_id))
         else:
-            print("{} aborts! (Due to deadlock)".format(transaction_id))
+            print("{} aborts! (due to deadlock)".format(transaction_id))
 
     def commit(self, transaction_id, commit_ts):
         for dm in self.data_manager_list:
@@ -220,9 +225,15 @@ class TransactionManager:
         dm.fail(self.ts)
         print("Site {} fails".format(site_id))
         for t in self.transaction_table.values():
+            # print("{} accessed sites {}".format(t.transaction_id, t.sites_accessed))
+            # print(site_id in t.sites_accessed)
+            # print(type(site_id))
+            # if t.sites_accessed:
+            #     print(type(t.sites_accessed[0]))
             if (not t.is_ro) and (not t.will_abort) and (
                     site_id in t.sites_accessed):
                 t.will_abort = True
+                # print("{} will abort!!!".format(t.transaction_id))
 
     def recover(self, site_id):
         dm = self.data_manager_list[site_id - 1]
