@@ -72,7 +72,7 @@ class TransactionManager:
         elif command == "dump":
             self.dump()
         elif command == "end":
-            self.end(args[0])
+            self.end(args[0], self.ts)
         elif command == "fail":
             self.fail(args[0])
         elif command == "recover":
@@ -194,11 +194,11 @@ class TransactionManager:
 
             print(dm.dump(dm.site_id))
 
-    def end(self, transaction_id):
+    def end(self, transaction_id, ts):
         if self.transaction_table[transaction_id].will_abort:
             self.abort(transaction_id)
         else:
-            self.commit(transaction_id)
+            self.commit(transaction_id, ts)
 
     def abort(self, transaction_id):
         for dm in self.data_manager_list:
@@ -206,9 +206,9 @@ class TransactionManager:
         self.transaction_table.pop(transaction_id)
         print("{} aborts!".format(transaction_id))
 
-    def commit(self, transaction_id):
+    def commit(self, transaction_id, commit_ts):
         for dm in self.data_manager_list:
-            dm.commit(transaction_id)
+            dm.commit(transaction_id, commit_ts)
         self.transaction_table.pop(transaction_id)
         print("{} commits!".format(transaction_id))
 
