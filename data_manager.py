@@ -35,9 +35,9 @@ class Variable:
         '''
         self.variable_id = variable_id
         self.committed_value_list = [init_value]  # latest commit at front
-        self.is_replicated = is_replicated  # this is a even value
         self.temp_value = None
-        self.is_readable = True  # check the state when being recovered
+        self.is_replicated = is_replicated  # even indexed are replicated
+        self.is_readable = True  # replicated var not readable at site recovery
 
     def get_last_committed_value(self):
         '''
@@ -134,7 +134,7 @@ class LockManager:
         :param variable_id: an variable's id for a lock manager
         '''
         self.variable_id = variable_id
-        self.current_lock = None  # currently locking on the variable
+        self.current_lock = None
         self.queue = []  # list of QueuedLock
 
     def clear(self):
@@ -144,14 +144,11 @@ class LockManager:
         self.current_lock = None
         self.queue = []
 
-    def set_lock(self, lock):
+    def set_current_lock(self, lock):
         '''
         set a new lock as the current lock
         :param lock: either R or W-lock
         '''
-        if self.queue:
-            raise RuntimeError(
-                "Unresolved queued locks when current lock is None!")
         self.current_lock = lock
 
     def promote_current_lock(self, write_lock):
@@ -169,7 +166,7 @@ class LockManager:
                 self.current_lock.transaction_id_set:
             raise RuntimeError("{} is not holding current R-lock!".format(
                 write_lock.transaction_id))
-        self.current_lock = write_lock
+        self.set_current_lock(write_lock)
 
     def share_read_lock(self, transaction_id):
         '''
@@ -219,7 +216,7 @@ class LockManager:
                 if transaction_id in self.current_lock.transaction_id_set:
                     self.current_lock.transaction_id_set.remove(transaction_id)
                 if not len(self.current_lock.transaction_id_set):
-                    # turn to none when no any transaction holds read lock on the variable
+                    # release when no other transaction holding R-lock
                     self.current_lock = None
             else:
                 # current lock is W-lock
@@ -269,12 +266,13 @@ class DataManager:
         v: Variable = self.data.get(variable_id)
         if v.is_readable:
             for commit_value in v.committed_value_list:
-                # find the latest commit value before the trasaction's begin
+                # find the latest commit value before the transaction's begin
                 if commit_value.commit_ts <= ts:
-                    if v.is_replicated:  # only the replicated type variable need to be handled
+                    # only replicated variables need to be handled
+                    if v.is_replicated:
                         for fail_ts in self.fail_ts_list:
-                            # if this site has failed between the last commit and the
-                            # trasaction's begin
+                            # if the site has failed after the commit and
+                            # before the transaction begins
                             if commit_value.commit_ts < fail_ts <= ts:
                                 return Result(False)
                     return Result(True, commit_value.value)
@@ -313,7 +311,7 @@ class DataManager:
                     QueuedLock(variable_id, transaction_id, LockType.R))
                 return Result(False)
             # No existing lock on the variable, create one
-            lm.set_lock(ReadLock(variable_id, transaction_id))
+            lm.set_current_lock(ReadLock(variable_id, transaction_id))
             return Result(True, v.get_last_committed_value())
         return Result(False)
 
@@ -376,7 +374,7 @@ class DataManager:
                 if transaction_id in current_lock.transaction_id_set:
                     if lm.has_other_queued_write_lock(transaction_id):
                         raise RuntimeError("Cannot promote to W-Lock: "
-                                           "other R-lock is waiting in queue!")
+                                           "other W-lock is waiting in queue!")
                     lm.promote_current_lock(
                         WriteLock(variable_id, transaction_id))
                     v.temp_value = TempValue(value, transaction_id)
@@ -392,7 +390,7 @@ class DataManager:
             raise RuntimeError("Cannot get W-Lock: "
                                "another transaction is holding W-lock!")
         # No existing lock on the variable
-        lm.set_lock(WriteLock(variable_id, transaction_id))
+        lm.set_current_lock(WriteLock(variable_id, transaction_id))
         v.temp_value = TempValue(value, transaction_id)
 
     def dump(self):
@@ -465,10 +463,10 @@ class DataManager:
                     # pop the first queued lock and add to
                     first_ql = lm.queue.pop(0)
                     if first_ql.lock_type == LockType.R:
-                        lm.set_lock(ReadLock(
+                        lm.set_current_lock(ReadLock(
                             first_ql.variable_id, first_ql.transaction_id))
                     else:
-                        lm.set_lock(WriteLock(
+                        lm.set_current_lock(WriteLock(
                             first_ql.variable_id, first_ql.transaction_id))
                 if lm.current_lock.lock_type == LockType.R:
                     # current lock is R-lock
@@ -504,7 +502,7 @@ class DataManager:
         self.recover_ts_list.append(ts)
         for v in self.data.values():
             if v.is_replicated:
-                v.is_readable = False  # only for replicated type variables
+                v.is_readable = False  # only for replicated variables
 
     def generate_blocking_graph(self):
         '''
