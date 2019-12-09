@@ -264,7 +264,7 @@ class DataManager:
                 if transaction_id in current_lock.transaction_id_set:
                     if lm.has_other_queued_write_lock(transaction_id):
                         raise RuntimeError("Cannot promote to W-Lock: "
-                                           "other R-lock is waiting in queue!")
+                                           "other W-lock is waiting in queue!")
                     lm.promote_current_lock(
                         WriteLock(variable_id, transaction_id))
                     v.temp_value = TempValue(value, transaction_id)
