@@ -8,7 +8,7 @@ if __name__ == '__main__':
     # $ python3 main.py [input_file]
     file_path = sys.argv[1] if len(sys.argv) >= 2 else None
     if file_path:
-        print("Getting input from file...")
+        print("Getting input from {}...".format(file_path))
         try:
             with open(file_path, 'r') as file:
                 for line in file:
