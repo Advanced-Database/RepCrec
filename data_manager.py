@@ -5,7 +5,7 @@ from collections import defaultdict
 class CommitValue:
     def __init__(self, value, commit_ts):
         '''
-        Initiate the CommitValue object
+        initiate the CommitValue object
         :param value: commit's value
         :param commit_ts: commit's time
         '''
@@ -17,7 +17,7 @@ class CommitValue:
 class TempValue:
     def __init__(self, value, transaction_id):
         '''
-        Initiate the TempValue object
+        initiate the TempValue object
         :param value: a temporary value written by the transaction holding W-lock
         :param transaction_id: the id of the transaction holding W-lock
         '''
@@ -28,7 +28,7 @@ class TempValue:
 class Variable:
     def __init__(self, variable_id, init_value, is_replicated):
         '''
-        Initiate the Variable object
+        initiate the Variable object
         :param variable_id: variable's identifier
         :param init_value: variable's initialized value
         :param is_replicated: indicate if variable is replicated type or not
@@ -55,7 +55,7 @@ class Variable:
 
     def add_commit_value(self, commit_value):
         '''
-        Add a new CommitValue object into the front of the committed value list
+        add a new CommitValue object into the front of the committed value list
         :param commit_value: a CommitValue object
         '''
         self.committed_value_list.insert(0, commit_value)
@@ -64,7 +64,7 @@ class Variable:
 class Result:
     def __init__(self, success, value=None):
         '''
-        Initiate the Result object
+        initiate the Result object
         :param success: indicate if the result is successful or not
         :param value: result's value
         '''
@@ -80,7 +80,7 @@ class LockType(Enum):
 class ReadLock:
     def __init__(self, variable_id, transaction_id):
         '''
-        Initiate the ReadLock object
+        initiate the ReadLock object
         :param variable_id: variable's id for the R-lock
         :param transaction_id: transaction's id for the R-lock
         '''
@@ -97,7 +97,7 @@ class ReadLock:
 class WriteLock:
     def __init__(self, variable_id, transaction_id):
         '''
-        Initiate the WriteLock object
+        initiate the WriteLock object
         :param variable_id: variable's id for the W-lock
         :param transaction_id: transaction's id for the W-lock
         '''
@@ -113,7 +113,7 @@ class WriteLock:
 class QueuedLock:
     def __init__(self, variable_id, transaction_id, lock_type: LockType):
         '''
-        Initiate the QueuedLock object
+        initiate the QueuedLock object
         :param variable_id: variable's id for the Q-lock
         :param transaction_id: transaction's id for the Q-lock
         :param lock_type: either R or W type of lock for this Q-lock
@@ -130,7 +130,7 @@ class QueuedLock:
 class LockManager:
     def __init__(self, variable_id):
         '''
-        Initiate the LockManager object
+        initiate the LockManager object
         :param variable_id: an variable's id for a lock manager
         '''
         self.variable_id = variable_id
@@ -227,7 +227,7 @@ class LockManager:
 class DataManager:
     def __init__(self, site_id):
         '''
-        Initiate the DataManager object
+        initiate the DataManager object
         :param site_id: the id of the site managed by this data manager
         '''
         self.site_id = site_id  # int type
