@@ -1,58 +1,103 @@
-import re
 from data_manager import DataManager
 from parser import Parser
+from collections import defaultdict
 
 
 class InvalidInstructionError(Exception):
+    """Error thrown when the instruction is invalid."""
+
     def __init__(self, message):
         self.message = message
 
 
 class Transaction:
     def __init__(self, ts, transaction_id, is_ro):
+        """
+        Initialize a Transaction instance.
+        :param ts (int): the timestamp when the transaction begins
+        :param transaction_id (str): the id of the transaction (e.g. T1, T2)
+        :param is_ro (bool): whether the transaction is read-only
+        """
         self.ts = ts
         self.transaction_id = transaction_id
         self.is_ro = is_ro
         self.will_abort = False
-        self.sites_accessed = set()
+        self.sites_accessed = []
 
 
 class Operation:
-    def __init__(self, command, transaction_id, variable, value=None):
+    """An Operation is either a Read or a Write instruction."""
+
+    def __init__(self, command, transaction_id, variable_id, value=None):
+        """
+        Initialize an Operation instance.
+        :param command (str): "R" or "W"
+        :param transaction_id: the id of the transaction performing this op
+        :param variable_id: the id of the variable
+        :param value: write value (optional)
+        """
         self.command = command
         self.transaction_id = transaction_id
-        self.variable = variable
+        self.variable_id = variable_id
         self.value = value
+
+    def __repr__(self):
+        """Custom print for debugging purpose."""
+        if self.value is None:
+            return "{}({},{})".format(self.command, self.transaction_id,
+                                      self.variable_id)
+        return "{}({},{},{})".format(self.command, self.transaction_id,
+                                     self.variable_id, self.value)
 
 
 class TransactionManager:
+    """Transaction Manager class."""
     parser = Parser()
-    transaction_table = {}
-    ts = 0
-    operation_queue = []
+    transaction_table = {}  # {transaction_id: Transaction}
+    ts = 0  # timestamp
+    operation_queue = []  # list of Operations
 
     def __init__(self):
-        # print("Init Transaction Manager!")
-        self.data_manager_nodes = []
+        """
+        Initialize all data managers.
+        """
+        self.data_manager_list = []
         for site_id in range(1, 11):
-            self.data_manager_nodes.append(DataManager(site_id))
+            self.data_manager_list.append(DataManager(site_id))
 
     def process_line(self, line):
+        """Core simulation process.
+        Parse input, resolve deadlock, process instructions and operations.
+        :param line: one line of instruction
+        :return: True if success, False if instruction is invalid
+        """
         li = self.parser.parse_line(line)
         if li:
             command = li.pop(0)
             try:
                 print("----- Timestamp: " + str(self.ts) + " -----")
+                if self.resolve_deadlock():
+                    self.execute_operation_queue()
                 self.process_instruction(command, li)
                 self.execute_operation_queue()
                 self.ts += 1
             except InvalidInstructionError as e:
-                print("[INVALID_INSTRUCTION_ERROR] " + e.message +
+                print("[INVALID_INSTRUCTION] " + e.message +
                       ": " + line.strip())
                 return False
+            # finally:
+            #     print()
         return True
 
     def process_instruction(self, command, args):
+        """
+        Process an instruction.
+        If the instruction is Read or Write, add it to the operation queue.
+        Otherwise, execute the instruction directly.
+        :param command: "begin", "beginRO", "R", "W", "dump", "end", "fail",
+         or "recover"
+        :param args: list of arguments for a command
+        """
         if command == "begin":
             self.begin(args[0])
         elif command == "beginRO":
@@ -66,40 +111,62 @@ class TransactionManager:
         elif command == "end":
             self.end(args[0])
         elif command == "fail":
-            self.fail(args[0])
+            self.fail(int(args[0]))
         elif command == "recover":
-            self.recover(args[0])
+            self.recover(int(args[0]))
         else:
             raise InvalidInstructionError("Unknown instruction")
 
-    def add_read_operation(self, transaction_id, variable):
+    def add_read_operation(self, transaction_id, variable_id):
+        """
+        Insert a Read Operation to the operation queue
+        :param transaction_id: the id of the transaction performing this op
+        :param variable_id: the id of the variable
+        """
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
-                "{} does not exist".format(transaction_id))
+                "Transaction {} does not exist".format(transaction_id))
         self.operation_queue.append(
-            Operation("R", transaction_id, variable))
+            Operation("R", transaction_id, variable_id))
 
-    def add_write_operation(self, transaction_id, variable, value):
+    def add_write_operation(self, transaction_id, variable_id, value):
+        """
+        Insert a Write Operation to the operation queue
+        :param transaction_id: the id of the transaction performing this op
+        :param variable_id: the id of the variable
+        :param value: write value
+        """
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
-                "{} does not exist".format(transaction_id))
+                "Transaction {} does not exist".format(transaction_id))
         self.operation_queue.append(
-            Operation("W", transaction_id, variable, value))
+            Operation("W", transaction_id, variable_id, value))
 
     def execute_operation_queue(self):
+        """Go through operation queue and execute any executable operations."""
         for op in list(self.operation_queue):
-            success = False
-            if op.command == "R":
-                success = self.read(op.transaction_id, op.variable)
-            elif op.command == "W":
-                success = self.write(op.transaction_id, op.variable, op.value)
-            else:
-                print("Invalid operation!")
-            if success:
+            if not self.transaction_table.get(op.transaction_id):
                 self.operation_queue.remove(op)
+            else:
+                success = False
+                if op.command == "R":
+                    if self.transaction_table[op.transaction_id].is_ro:
+                        success = self.read_snapshot(op.transaction_id,
+                                                     op.variable_id)
+                    else:
+                        success = self.read(op.transaction_id, op.variable_id)
+                elif op.command == "W":
+                    success = self.write(op.transaction_id, op.variable_id,
+                                         op.value)
+                else:
+                    print("Invalid operation!")
+                if success:
+                    # print("Executed op: {}".format(op))
+                    self.operation_queue.remove(op)
+        # print("Remaining ops: {}".format(self.operation_queue))
 
     # -----------------------------------------------------
-    # -------------- Operation Executions ---------------
+    # -------------- Instruction Executions ---------------
     # -----------------------------------------------------
     def begin(self, transaction_id):
         if self.transaction_table.get(transaction_id):
@@ -116,111 +183,163 @@ class TransactionManager:
         self.transaction_table[transaction_id] = Transaction(
             self.ts, transaction_id, True)
         print("{} begins and is read-only".format(transaction_id))
-        '''
-        TO-DO: (Multiversion)
-        *** This should be implemented in DataManager. ***
-        1. A read-only transaction obtains no locks
-        2. It reads all data items that have committed at the time the read transaction begins
-        3. As concurrent updates take place, save old copies
-        '''
 
-    def read(self, transaction_id, variable):
+    def read_snapshot(self, transaction_id, variable_id):
+        """Perform read operation for read-only transactions."""
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
-
-        print(transaction_id + " read " + variable)
-        t_sites_accessed = self.transaction_table[transaction_id].sites_accessed
-        for dm in self.data_manager_nodes:
-            if dm.get_read_lock(transaction_id, variable):
-                t_sites_accessed.add(dm.site_id)
-                return dm.set_read_lock(transaction_id, variable)
+        ts = self.transaction_table[transaction_id].ts
+        for dm in self.data_manager_list:
+            if dm.is_up and dm.has_variable(variable_id):
+                # pass the transaction's begin time into each data manager
+                # when doing read-only
+                result = dm.read_snapshot(variable_id, ts)
+                if result.success:
+                    print("{} (RO) reads {}.{}: {}".format(
+                        transaction_id, variable_id, dm.site_id, result.value))
+                    return True
         return False
 
-    def write(self, transaction_id, variable, value):
+    def read(self, transaction_id, variable_id):
+        """Perform read operation for normal transactions."""
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
+        for dm in self.data_manager_list:
+            if dm.is_up and dm.has_variable(variable_id):
+                result = dm.read(transaction_id, variable_id)
+                if result.success:
+                    self.transaction_table[
+                        transaction_id].sites_accessed.append(dm.site_id)
+                    print("{} reads {}.{}: {}".format(
+                        transaction_id, variable_id, dm.site_id, result.value))
+                    return True
+        return False
 
-        print(transaction_id + " write " +
-              variable + " with value '" + value + "'")
-        t_sites_accessed = self.transaction_table[transaction_id].sites_accessed
-        for dm in self.data_manager_nodes:
-            if dm.is_exclusive_lock_conflict(transaction_id, variable):
-                return False
+    def write(self, transaction_id, variable_id, value):
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
+        all_relevant_sites_down = True
+        can_get_all_write_locks = True
+        for dm in self.data_manager_list:
+            if dm.is_up and dm.has_variable(variable_id):
+                # check if all the relevant sites are down now
+                all_relevant_sites_down = False
+                result = dm.get_write_lock(transaction_id, variable_id)
+                if not result:
+                    can_get_all_write_locks = False
 
-        for dm in self.data_manager_nodes:
-            if dm.get_exclusive_lock(transaction_id, variable):
-                t_sites_accessed.add(dm.site_id)
-                dm.set_exclusive_lock(transaction_id, variable)
-                dm.write_value(variable, value)
-        return True
+        if not all_relevant_sites_down and can_get_all_write_locks:
+            # print("{} will write {} with value {}".format(
+            #     transaction_id, variable_id, value))
+            sites_written = []
+            for dm in self.data_manager_list:
+                if dm.is_up and dm.has_variable(variable_id):
+                    dm.write(transaction_id, variable_id, value)
+                    self.transaction_table[
+                        transaction_id].sites_accessed.append(dm.site_id)
+                    sites_written.append(dm.site_id)
+            print("{} writes {} with value {} to sites {}".format(
+                transaction_id, variable_id, value, sites_written))
+            return True
+        return False
 
     def dump(self):
-        print("Dump all data at all sites!")
-        for dm in self.data_manager_nodes:
-            if dm.is_up:
-                print("Site" + str(dm.site_id) + " is up")
-            else:
-                print("Site" + str(dm.site_id) + "'s status: Down")
-            print(dm.dump(dm.site_id))
+        print("Dump:")
+        for dm in self.data_manager_list:
+            dm.dump()
 
     def end(self, transaction_id):
-        print(transaction_id + " is ended")
+        """Commit or abort a transaction depending its status."""
+        if not self.transaction_table.get(transaction_id):
+            raise InvalidInstructionError(
+                "Transaction {} does not exist".format(transaction_id))
         if self.transaction_table[transaction_id].will_abort:
-            self.abort(transaction_id)
+            self.abort(transaction_id, True)
         else:
-            self.commit(transaction_id)
+            self.commit(transaction_id, self.ts)
 
-    def abort(self, transaction_id):
-        print(transaction_id + " is aborted")
-        for dm in self.data_manager_nodes:
-            """
-            TO-DO: restore all the value written by this transaction to the original one
-            """
-            dm.release_locks(transaction_id)
+    def abort(self, transaction_id, due_to_site_fail=False):
+        """Abort a transaction."""
+        for dm in self.data_manager_list:
+            dm.abort(transaction_id)
+        self.transaction_table.pop(transaction_id)
+        if due_to_site_fail:
+            print("{} aborts! (due to site failure)".format(transaction_id))
+        else:
+            print("{} aborts! (due to deadlock)".format(transaction_id))
 
-    def commit(self, transaction_id):
-        print(transaction_id + " is commited")
-        for dm in self.data_manager_nodes:
-            dm.release_locks(transaction_id)
+    def commit(self, transaction_id, commit_ts):
+        """Commit a transaction."""
+        for dm in self.data_manager_list:
+            dm.commit(transaction_id, commit_ts)
+        self.transaction_table.pop(transaction_id)
+        print("{} commits!".format(transaction_id))
 
     def fail(self, site_id):
-        site = self.data_manager_nodes[int(site_id) - 1]
-        if not site.is_up:
+        """Site fails."""
+        dm = self.data_manager_list[site_id - 1]
+        if not dm.is_up:
             raise InvalidInstructionError(
                 "Site {} is already down".format(site_id))
-        site.fail(self.ts)
+        dm.fail(self.ts)
+        print("Site {} fails".format(site_id))
         for t in self.transaction_table.values():
             if (not t.is_ro) and (not t.will_abort) and (
                     site_id in t.sites_accessed):
+                # not applied to read-only transaction
                 t.will_abort = True
-        print("Site " + site_id + " fails")
+                # print("{} will abort!!!".format(t.transaction_id))
 
     def recover(self, site_id):
-        site = self.data_manager_nodes[int(site_id) - 1]
-        if site.is_up:
+        """Site recovers."""
+        dm = self.data_manager_list[site_id - 1]
+        if dm.is_up:
             raise InvalidInstructionError(
                 "Site {} is already up".format(site_id))
-        site.recover(self.ts)
-        print("Site " + site_id + " recovers")
+        dm.recover(self.ts)
+        print("Site {} recovers".format(site_id))
 
     # -----------------------------------------------------
+    # ---------------- Deadlock Detection -----------------
     # -----------------------------------------------------
-    # -----------------------------------------------------
-
-    def deadlock_detection(self):
-        print("Execute deadlock detection!")
-        '''
-        TO-DO:
-        1. Construct a blocking (waits-for) graph. Give each transaction a unique timestamp. Require that numbers given to transactions always increase.
-        2. Detect deadlocks using cycle detection and abort the youngest transaction in the cycle.
-        3. Cycle detection need not happen frequently. Deadlock doesnt go away.
-        '''
-
-    def monitor_site_status(self):
-        for dm in self.data_manager_nodes:
+    def resolve_deadlock(self):
+        """
+        Detect deadlocks using cycle detection and abort the youngest
+        transaction in the cycle.
+        :return: True if a deadlock is resolved, False if no deadlock detected
+        """
+        blocking_graph = defaultdict(set)
+        for dm in self.data_manager_list:
             if dm.is_up:
-                pass
-            else:
-                pass
+                graph = dm.generate_blocking_graph()
+                for node, adj_list in graph.items():
+                    blocking_graph[node].update(adj_list)
+        # print(dict(blocking_graph))
+        youngest_t_id = None
+        youngest_ts = -1
+        for node in list(blocking_graph.keys()):
+            visited = set()
+            if has_cycle(node, node, visited, blocking_graph):
+                if self.transaction_table[node].ts > youngest_ts:
+                    youngest_t_id = node
+                    youngest_ts = self.transaction_table[node].ts
+        if youngest_t_id:
+            print("Deadlock detected: aborting {}".format(youngest_t_id))
+            self.abort(youngest_t_id)
+            return True
+        return False
+
+
+def has_cycle(current, root, visited, blocking_graph):
+    """Helper function that detects cycle in blocking graph using dfs."""
+    visited.add(current)
+    for neighbour in blocking_graph[current]:
+        if neighbour == root:
+            return True
+        if neighbour not in visited:
+            if has_cycle(neighbour, root, visited, blocking_graph):
+                return True
+    return False
