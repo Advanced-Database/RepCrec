@@ -38,8 +38,9 @@ for _reprounzip_:
 $ module load python-3.6
 $ python -c 'import reprozip'
 $ echo $?
-0  <-- getting 0 in this step means success
+0
 ```
+Getting 0 in the last step means success.
 
 Then, install _reprounzip_:
 ```bash
