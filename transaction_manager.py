@@ -4,12 +4,20 @@ from collections import defaultdict
 
 
 class InvalidInstructionError(Exception):
+    """Error thrown when the instruction is invalid."""
+
     def __init__(self, message):
         self.message = message
 
 
 class Transaction:
     def __init__(self, ts, transaction_id, is_ro):
+        """
+        Initialize a Transaction instance.
+        :param ts (int): the timestamp when the transaction begins
+        :param transaction_id (str): the id of the transaction (e.g. T1, T2)
+        :param is_ro (bool): whether the transaction is read-only
+        """
         self.ts = ts
         self.transaction_id = transaction_id
         self.is_ro = is_ro
@@ -17,15 +25,24 @@ class Transaction:
         self.sites_accessed = []
 
 
-# only Read and Write commands belong to Operation
 class Operation:
+    """An Operation is either a Read or a Write instruction."""
+
     def __init__(self, command, transaction_id, variable_id, value=None):
+        """
+        Initialize an Operation instance.
+        :param command (str): "R" or "W"
+        :param transaction_id: the id of the transaction performing this op
+        :param variable_id: the id of the variable
+        :param value: write value (optional)
+        """
         self.command = command
         self.transaction_id = transaction_id
         self.variable_id = variable_id
         self.value = value
 
     def __repr__(self):
+        """Custom print for debugging purpose."""
         if self.value is None:
             return "{}({},{})".format(self.command, self.transaction_id,
                                       self.variable_id)
@@ -34,17 +51,26 @@ class Operation:
 
 
 class TransactionManager:
+    """Transaction Manager class."""
     parser = Parser()
-    transaction_table = {}
-    ts = 0
-    operation_queue = []
+    transaction_table = {}  # {transaction_id: Transaction}
+    ts = 0  # timestamp
+    operation_queue = []  # list of Operations
 
     def __init__(self):
+        """
+        Initialize all data managers.
+        """
         self.data_manager_list = []
         for site_id in range(1, 11):
             self.data_manager_list.append(DataManager(site_id))
 
     def process_line(self, line):
+        """Core simulation process.
+        Parse input, resolve deadlock, process instructions and operations.
+        :param line: one line of instruction
+        :return: True if success, False if instruction is invalid
+        """
         li = self.parser.parse_line(line)
         if li:
             command = li.pop(0)
@@ -64,6 +90,14 @@ class TransactionManager:
         return True
 
     def process_instruction(self, command, args):
+        """
+        Process an instruction.
+        If the instruction is Read or Write, add it to the operation queue.
+        Otherwise, execute the instruction directly.
+        :param command: "begin", "beginRO", "R", "W", "dump", "end", "fail",
+         or "recover"
+        :param args: list of arguments for a command
+        """
         if command == "begin":
             self.begin(args[0])
         elif command == "beginRO":
@@ -84,6 +118,11 @@ class TransactionManager:
             raise InvalidInstructionError("Unknown instruction")
 
     def add_read_operation(self, transaction_id, variable_id):
+        """
+        Insert a Read Operation to the operation queue
+        :param transaction_id: the id of the transaction performing this op
+        :param variable_id: the id of the variable
+        """
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
@@ -91,6 +130,12 @@ class TransactionManager:
             Operation("R", transaction_id, variable_id))
 
     def add_write_operation(self, transaction_id, variable_id, value):
+        """
+        Insert a Write Operation to the operation queue
+        :param transaction_id: the id of the transaction performing this op
+        :param variable_id: the id of the variable
+        :param value: write value
+        """
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
@@ -98,6 +143,7 @@ class TransactionManager:
             Operation("W", transaction_id, variable_id, value))
 
     def execute_operation_queue(self):
+        """Go through operation queue and execute any executable operations."""
         for op in list(self.operation_queue):
             if not self.transaction_table.get(op.transaction_id):
                 self.operation_queue.remove(op)
@@ -139,13 +185,15 @@ class TransactionManager:
         print("{} begins and is read-only".format(transaction_id))
 
     def read_snapshot(self, transaction_id, variable_id):
+        """Perform read operation for read-only transactions."""
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
         ts = self.transaction_table[transaction_id].ts
         for dm in self.data_manager_list:
             if dm.is_up and dm.has_variable(variable_id):
-                # pass the transaction's begin time into each data manager when doing read-only
+                # pass the transaction's begin time into each data manager
+                # when doing read-only
                 result = dm.read_snapshot(variable_id, ts)
                 if result.success:
                     print("{} (RO) reads {}.{}: {}".format(
@@ -154,6 +202,7 @@ class TransactionManager:
         return False
 
     def read(self, transaction_id, variable_id):
+        """Perform read operation for normal transactions."""
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
@@ -203,11 +252,7 @@ class TransactionManager:
             dm.dump()
 
     def end(self, transaction_id):
-        # print("{} accessed sites {}".format(
-        #     transaction_id,
-        #     self.transaction_table[transaction_id].sites_accessed))
-        # print("{} will abort? {}".format(
-        #     transaction_id, self.transaction_table[transaction_id].will_abort))
+        """Commit or abort a transaction depending its status."""
         if not self.transaction_table.get(transaction_id):
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
@@ -217,6 +262,7 @@ class TransactionManager:
             self.commit(transaction_id, self.ts)
 
     def abort(self, transaction_id, due_to_site_fail=False):
+        """Abort a transaction."""
         for dm in self.data_manager_list:
             dm.abort(transaction_id)
         self.transaction_table.pop(transaction_id)
@@ -226,12 +272,14 @@ class TransactionManager:
             print("{} aborts! (due to deadlock)".format(transaction_id))
 
     def commit(self, transaction_id, commit_ts):
+        """Commit a transaction."""
         for dm in self.data_manager_list:
             dm.commit(transaction_id, commit_ts)
         self.transaction_table.pop(transaction_id)
         print("{} commits!".format(transaction_id))
 
     def fail(self, site_id):
+        """Site fails."""
         dm = self.data_manager_list[site_id - 1]
         if not dm.is_up:
             raise InvalidInstructionError(
@@ -239,11 +287,6 @@ class TransactionManager:
         dm.fail(self.ts)
         print("Site {} fails".format(site_id))
         for t in self.transaction_table.values():
-            # print("{} accessed sites {}".format(t.transaction_id, t.sites_accessed))
-            # print(site_id in t.sites_accessed)
-            # print(type(site_id))
-            # if t.sites_accessed:
-            #     print(type(t.sites_accessed[0]))
             if (not t.is_ro) and (not t.will_abort) and (
                     site_id in t.sites_accessed):
                 # not applied to read-only transaction
@@ -251,6 +294,7 @@ class TransactionManager:
                 # print("{} will abort!!!".format(t.transaction_id))
 
     def recover(self, site_id):
+        """Site recovers."""
         dm = self.data_manager_list[site_id - 1]
         if dm.is_up:
             raise InvalidInstructionError(
@@ -259,11 +303,14 @@ class TransactionManager:
         print("Site {} recovers".format(site_id))
 
     # -----------------------------------------------------
+    # ---------------- Deadlock Detection -----------------
     # -----------------------------------------------------
-    # -----------------------------------------------------
-
     def resolve_deadlock(self):
-        # print("Executing deadlock detection!")
+        """
+        Detect deadlocks using cycle detection and abort the youngest
+        transaction in the cycle.
+        :return: True if a deadlock is resolved, False if no deadlock detected
+        """
         blocking_graph = defaultdict(set)
         for dm in self.data_manager_list:
             if dm.is_up:
@@ -287,6 +334,7 @@ class TransactionManager:
 
 
 def has_cycle(current, root, visited, blocking_graph):
+    """Helper function that detects cycle in blocking graph using dfs."""
     visited.add(current)
     for neighbour in blocking_graph[current]:
         if neighbour == root:
