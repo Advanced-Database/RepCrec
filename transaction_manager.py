@@ -50,7 +50,7 @@ class TransactionManager:
             command = li.pop(0)
             try:
                 print("----- Timestamp: " + str(self.ts) + " -----")
-                if self.deadlock_detection():
+                if self.resolve_deadlock():
                     self.execute_operation_queue()
                 self.process_instruction(command, li)
                 self.execute_operation_queue()
@@ -180,7 +180,6 @@ class TransactionManager:
                 all_relevant_sites_down = False
                 result = dm.get_write_lock(transaction_id, variable_id)
                 if not result:
-                    # check if cannot get W-lock from any relevant site
                     can_get_all_write_locks = False
 
         if not all_relevant_sites_down and can_get_all_write_locks:
@@ -213,7 +212,6 @@ class TransactionManager:
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
         if self.transaction_table[transaction_id].will_abort:
-            # this transaction has failed before
             self.abort(transaction_id, True)
         else:
             self.commit(transaction_id, self.ts)
@@ -247,7 +245,8 @@ class TransactionManager:
             # if t.sites_accessed:
             #     print(type(t.sites_accessed[0]))
             if (not t.is_ro) and (not t.will_abort) and (
-                    site_id in t.sites_accessed):  # not applied to read-only transaction
+                    site_id in t.sites_accessed):
+                # not applied to read-only transaction
                 t.will_abort = True
                 # print("{} will abort!!!".format(t.transaction_id))
 
@@ -263,7 +262,7 @@ class TransactionManager:
     # -----------------------------------------------------
     # -----------------------------------------------------
 
-    def deadlock_detection(self):
+    def resolve_deadlock(self):
         # print("Executing deadlock detection!")
         blocking_graph = defaultdict(set)
         for dm in self.data_manager_list:
