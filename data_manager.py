@@ -8,6 +8,7 @@ class CommitValue:
         self.commit_ts = commit_ts
 
 
+# save the temporary written value before committing the transaction
 class TempValue:
     def __init__(self, value, transaction_id):
         self.value = value
@@ -18,9 +19,9 @@ class Variable:
     def __init__(self, variable_id, init_value, is_replicated):
         self.variable_id = variable_id
         self.committed_value_list = [init_value]  # latest commit at front
-        self.is_replicated = is_replicated
+        self.is_replicated = is_replicated  # this is a even value
         self.temp_value = None
-        self.is_readable = True
+        self.is_readable = True  # check the state when being recovered
 
     def get_last_committed_value(self):
         return self.committed_value_list[0].value
@@ -48,6 +49,7 @@ class LockType(Enum):
 class ReadLock:
     def __init__(self, variable_id, transaction_id):
         self.variable_id = variable_id
+        # multiple transactions could share a R-lock
         self.transaction_id_set = {transaction_id}
         self.lock_type = LockType.R
 
@@ -71,7 +73,7 @@ class QueuedLock:
     def __init__(self, variable_id, transaction_id, lock_type: LockType):
         self.variable_id = variable_id
         self.transaction_id = transaction_id
-        self.lock_type = lock_type
+        self.lock_type = lock_type  # Q-lock could be either read or write
 
     def __repr__(self):
         return "({}, {}, {})".format(
@@ -81,28 +83,22 @@ class QueuedLock:
 class LockManager:
     def __init__(self, variable_id):
         self.variable_id = variable_id
-        self.current_lock = None
+        self.current_lock = None  # currently locking on the variable
         self.queue = []  # list of QueuedLock
 
     def clear(self):
         self.current_lock = None
         self.queue = []
 
-    # todo: maybe combine set_read_lock, set_write_lock,
-    #       and promote_to_write_lock into set_current_lock
-    def set_read_lock(self, read_lock):
-        # if self.queue:
-        #     raise RuntimeError(
-        #         "Unresolved queued locks when current lock is None!")
-        self.current_lock = read_lock
+    # use for both read and write lock
+    def set_lock(self, lock):
+        if self.queue:
+            raise RuntimeError(
+                "Unresolved queued locks when current lock is None!")
+        self.current_lock = lock
 
-    def set_write_lock(self, write_lock):
-        # if self.queue:
-        #     raise RuntimeError(
-        #         "Unresolved queued locks when current lock is None!")
-        self.current_lock = write_lock
-
-    def promote_to_write_lock(self, write_lock):
+    # promote the current lock from read to write for the same transaction
+    def promote_current_lock(self, write_lock):
         if not self.current_lock:
             raise RuntimeError("No current lock!")
         if not self.current_lock.lock_type == LockType.R:
@@ -123,6 +119,8 @@ class LockManager:
     def add_to_queue(self, new_lock: QueuedLock):
         for queued_lock in self.queue:
             if queued_lock.transaction_id == new_lock.transaction_id:
+                # transaction holds the same type of lock or the new lock is
+                # a R-lock when already had locks in queue
                 if queued_lock.lock_type == new_lock.lock_type or \
                         new_lock.lock_type == LockType.R:
                     return
@@ -144,6 +142,7 @@ class LockManager:
                 if transaction_id in self.current_lock.transaction_id_set:
                     self.current_lock.transaction_id_set.remove(transaction_id)
                 if not len(self.current_lock.transaction_id_set):
+                    # turn to none when no any transaction holds read lock on the variable
                     self.current_lock = None
             else:
                 # current lock is W-lock
@@ -153,23 +152,23 @@ class LockManager:
 
 class DataManager:
     def __init__(self, site_id):
-        self.site_id = site_id  # int
+        self.site_id = site_id  # int type
         self.is_up = True
-        self.data = {}
-        self.lock_table = {}
+        self.data = {}  # store each variable
+        self.lock_table = {}  # store lock manager for each variable
+        self.fail_ts_list = []  # latest fail at end
+        self.recover_ts_list = []  # latest recover at end
+
         for v_idx in range(1, 21):
             variable_id = "x" + str(v_idx)
-            if v_idx % 2 == 0:  # replicated
+            if v_idx % 2 == 0:  # replicated (even)
                 self.data[variable_id] = Variable(
                     variable_id, CommitValue(v_idx * 10, 0), True)
                 self.lock_table[variable_id] = LockManager(variable_id)
-            elif v_idx % 10 + 1 == self.site_id:  # non-replicated
+            elif v_idx % 10 + 1 == self.site_id:  # non-replicated (odd)
                 self.data[variable_id] = Variable(
                     variable_id, CommitValue(v_idx * 10, 0), False)
                 self.lock_table[variable_id] = LockManager(variable_id)
-
-        self.fail_ts_list = []  # latest fail at end
-        self.recover_ts_list = []  # latest recover at end
 
     def has_variable(self, variable_id):
         return self.data.get(variable_id)
@@ -178,17 +177,20 @@ class DataManager:
         v: Variable = self.data.get(variable_id)
         if v.is_readable:
             for commit_value in v.committed_value_list:
+                # find the latest commit value before the trasaction's begin
                 if commit_value.commit_ts <= ts:
-                    if v.is_replicated:
+                    if v.is_replicated:  # only the replicated type variable need to be handled
                         for fail_ts in self.fail_ts_list:
+                            # if this site has failed between the last commit and the
+                            # trasaction's begin
                             if commit_value.commit_ts < fail_ts <= ts:
                                 return Result(False)
                     return Result(True, commit_value.value)
         return Result(False)
 
     def read(self, transaction_id, variable_id):
-        v: Variable = self.data[variable_id]
-        if v.is_readable:
+        v: Variable = self.data.get(variable_id)
+        if v.is_readable:  # avoid the revovery case
             lm: LockManager = self.lock_table[variable_id]
             current_lock = lm.current_lock
             if current_lock:
@@ -213,12 +215,11 @@ class DataManager:
                     QueuedLock(variable_id, transaction_id, LockType.R))
                 return Result(False)
             # No existing lock on the variable, create one
-            lm.set_read_lock(ReadLock(variable_id, transaction_id))
+            lm.set_lock(ReadLock(variable_id, transaction_id))
             return Result(True, v.get_last_committed_value())
         return Result(False)
 
     def get_write_lock(self, transaction_id, variable_id):
-        # print("get_write_lock on site {}".format(self.site_id))
         lm: LockManager = self.lock_table[variable_id]
         current_lock = lm.current_lock
         if current_lock:
@@ -266,7 +267,7 @@ class DataManager:
                     if lm.has_other_queued_write_lock(transaction_id):
                         raise RuntimeError("Cannot promote to W-Lock: "
                                            "other R-lock is waiting in queue!")
-                    lm.promote_to_write_lock(
+                    lm.promote_current_lock(
                         WriteLock(variable_id, transaction_id))
                     v.temp_value = TempValue(value, transaction_id)
                     return
@@ -281,7 +282,7 @@ class DataManager:
             raise RuntimeError("Cannot get W-Lock: "
                                "another transaction is holding W-lock!")
         # No existing lock on the variable
-        lm.set_write_lock(WriteLock(variable_id, transaction_id))
+        lm.set_lock(WriteLock(variable_id, transaction_id))
         v.temp_value = TempValue(value, transaction_id)
 
     def dump(self):
@@ -339,10 +340,10 @@ class DataManager:
                     # pop the first queued lock and add to
                     first_ql = lm.queue.pop(0)
                     if first_ql.lock_type == LockType.R:
-                        lm.set_read_lock(ReadLock(
+                        lm.set_lock(ReadLock(
                             first_ql.variable_id, first_ql.transaction_id))
                     else:
-                        lm.set_write_lock(WriteLock(
+                        lm.set_lock(WriteLock(
                             first_ql.variable_id, first_ql.transaction_id))
                 if lm.current_lock.lock_type == LockType.R:
                     # current lock is R-lock
@@ -352,7 +353,7 @@ class DataManager:
                             if len(lm.current_lock.transaction_id_set) == 1 \
                                     and ql.transaction_id in \
                                     lm.current_lock.transaction_id_set:
-                                lm.promote_to_write_lock(WriteLock(
+                                lm.promote_current_lock(WriteLock(
                                     ql.variable_id, ql.transaction_id))
                                 lm.queue.remove(ql)
                             break
@@ -370,7 +371,7 @@ class DataManager:
         self.recover_ts_list.append(ts)
         for v in self.data.values():
             if v.is_replicated:
-                v.is_readable = False
+                v.is_readable = False  # only for replicated type variables
 
     def generate_blocking_graph(self):
         def current_blocks_queued(current_lock, queued_lock):
