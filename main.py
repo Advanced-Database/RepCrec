@@ -18,7 +18,8 @@ if __name__ == '__main__':
     else:
         print("Getting input from standard input... (enter \"exit\" to exit)")
         while True:
-            line = input("repcrec)")
+            line = input()
             if line.strip() == "exit":
                 break
             tm.process_line(line)
+            print("========================")
