@@ -4,6 +4,11 @@ from collections import defaultdict
 
 class CommitValue:
     def __init__(self, value, commit_ts):
+        '''
+        Initiate the CommitValue object
+        :param value: commit's value
+        :param commit_ts: commit's time
+        '''
         self.value = value
         self.commit_ts = commit_ts
 
@@ -11,12 +16,23 @@ class CommitValue:
 # save the temporary written value before committing the transaction
 class TempValue:
     def __init__(self, value, transaction_id):
+        '''
+        Initiate the TempValue object
+        :param value: a temporary value written by the transaction holding W-lock
+        :param transaction_id: the id of the transaction holding W-lock
+        '''
         self.value = value
         self.transaction_id = transaction_id
 
 
 class Variable:
     def __init__(self, variable_id, init_value, is_replicated):
+        '''
+        Initiate the Variable object
+        :param variable_id: variable's identifier
+        :param init_value: variable's initialized value
+        :param is_replicated: indicate if variable is replicated type or not
+        '''
         self.variable_id = variable_id
         self.committed_value_list = [init_value]  # latest commit at front
         self.is_replicated = is_replicated  # this is a even value
@@ -24,19 +40,34 @@ class Variable:
         self.is_readable = True  # check the state when being recovered
 
     def get_last_committed_value(self):
+        '''
+        :return: the latest committed value
+        '''
         return self.committed_value_list[0].value
 
     def get_temp_value(self):
+        '''
+        :return: the temporary value written by a transaction holding a W-lock
+        '''
         if not self.temp_value:
             raise RuntimeError("No temp value!")
         return self.temp_value.value
 
     def add_commit_value(self, commit_value):
+        '''
+        Add a new CommitValue object into the front of the committed value list
+        :param commit_value: a CommitValue object
+        '''
         self.committed_value_list.insert(0, commit_value)
 
 
 class Result:
     def __init__(self, success, value=None):
+        '''
+        Initiate the Result object
+        :param success: indicate if the result is successful or not
+        :param value: result's value
+        '''
         self.success = success
         self.value = value
 
@@ -48,6 +79,11 @@ class LockType(Enum):
 
 class ReadLock:
     def __init__(self, variable_id, transaction_id):
+        '''
+        Initiate the ReadLock object
+        :param variable_id: variable's id for the R-lock
+        :param transaction_id: transaction's id for the R-lock
+        '''
         self.variable_id = variable_id
         # multiple transactions could share a R-lock
         self.transaction_id_set = {transaction_id}
@@ -60,6 +96,11 @@ class ReadLock:
 
 class WriteLock:
     def __init__(self, variable_id, transaction_id):
+        '''
+        Initiate the WriteLock object
+        :param variable_id: variable's id for the W-lock
+        :param transaction_id: transaction's id for the W-lock
+        '''
         self.variable_id = variable_id
         self.transaction_id = transaction_id
         self.lock_type = LockType.W
@@ -71,6 +112,12 @@ class WriteLock:
 
 class QueuedLock:
     def __init__(self, variable_id, transaction_id, lock_type: LockType):
+        '''
+        Initiate the QueuedLock object
+        :param variable_id: variable's id for the Q-lock
+        :param transaction_id: transaction's id for the Q-lock
+        :param lock_type: either R or W type of lock for this Q-lock
+        '''
         self.variable_id = variable_id
         self.transaction_id = transaction_id
         self.lock_type = lock_type  # Q-lock could be either read or write
@@ -82,23 +129,36 @@ class QueuedLock:
 
 class LockManager:
     def __init__(self, variable_id):
+        '''
+        Initiate the LockManager object
+        :param variable_id: an variable's id for a lock manager
+        '''
         self.variable_id = variable_id
         self.current_lock = None  # currently locking on the variable
         self.queue = []  # list of QueuedLock
 
     def clear(self):
+        '''
+        clean the current lock and the lock queue for an variable
+        '''
         self.current_lock = None
         self.queue = []
 
-    # use for both read and write lock
     def set_lock(self, lock):
+        '''
+        set a new lock as the current lock
+        :param lock: either R or W-lock
+        '''
         if self.queue:
             raise RuntimeError(
                 "Unresolved queued locks when current lock is None!")
         self.current_lock = lock
 
-    # promote the current lock from read to write for the same transaction
     def promote_current_lock(self, write_lock):
+        '''
+        promote the current lock from read to write for the same transaction
+        :param write_lock: the new W-lock
+        '''
         if not self.current_lock:
             raise RuntimeError("No current lock!")
         if not self.current_lock.lock_type == LockType.R:
@@ -112,11 +172,19 @@ class LockManager:
         self.current_lock = write_lock
 
     def share_read_lock(self, transaction_id):
+        '''
+        share the same R-lock among multiple transactions
+        :param transaction_id: the id of the transaction wanting to share the R-lock
+        '''
         if not self.current_lock.lock_type == LockType.R:
             raise RuntimeError("Attempt to share W-lock!")
         self.current_lock.transaction_id_set.add(transaction_id)
 
     def add_to_queue(self, new_lock: QueuedLock):
+        '''
+        add the new lock into lock's queue
+        :param new_lock: the new lock
+        '''
         for queued_lock in self.queue:
             if queued_lock.transaction_id == new_lock.transaction_id:
                 # transaction holds the same type of lock or the new lock is
@@ -127,6 +195,11 @@ class LockManager:
         self.queue.append(new_lock)
 
     def has_other_queued_write_lock(self, transaction_id=None):
+        '''
+        check if there's any other W-lock exists in the lock's queue
+        :param transaction_id: transaction's id
+        :return: boolean value to indicate if existing queued W-lock
+        '''
         for queued_lock in self.queue:
             if queued_lock.lock_type == LockType.W:
                 if transaction_id and \
@@ -136,6 +209,10 @@ class LockManager:
         return False
 
     def release_current_lock_by_transaction(self, transaction_id):
+        '''
+        release the current lock depending on different cases of transaction
+        :param transaction_id:
+        '''
         if self.current_lock:
             if self.current_lock.lock_type == LockType.R:
                 # current lock is R-lock
@@ -152,6 +229,10 @@ class LockManager:
 
 class DataManager:
     def __init__(self, site_id):
+        '''
+        Initiate the DataManager object
+        :param site_id: the id of the site managed by this data manager
+        '''
         self.site_id = site_id  # int type
         self.is_up = True
         self.data = {}  # store each variable
@@ -171,9 +252,20 @@ class DataManager:
                 self.lock_table[variable_id] = LockManager(variable_id)
 
     def has_variable(self, variable_id):
+        '''
+        check if having a variable in this site
+        :param variable_id: variable's id
+        :return: boolean value to indicate if existing the variable in this site
+        '''
         return self.data.get(variable_id)
 
     def read_snapshot(self, variable_id, ts):
+        '''
+        read the snapshot of a variable's value (multiversion) for read-only transaction
+        :param variable_id: variable's id
+        :param ts: the beginning time of this transaction
+        :return: the result of the read action
+        '''
         v: Variable = self.data.get(variable_id)
         if v.is_readable:
             for commit_value in v.committed_value_list:
@@ -189,6 +281,12 @@ class DataManager:
         return Result(False)
 
     def read(self, transaction_id, variable_id):
+        '''
+        read a variable's value for non-read-only transaction
+        :param transaction_id: transaction's id
+        :param variable_id: variable's id
+        :return: the result of the read action
+        '''
         v: Variable = self.data.get(variable_id)
         if v.is_readable:  # avoid the revovery case
             lm: LockManager = self.lock_table[variable_id]
@@ -220,6 +318,12 @@ class DataManager:
         return Result(False)
 
     def get_write_lock(self, transaction_id, variable_id):
+        '''
+        check if allowing to get W-lock from this site
+        :param transaction_id: transaction's id
+        :param variable_id: variable's id
+        :return: boolean value to indicate if allowing to get W-lock from this site
+        '''
         lm: LockManager = self.lock_table[variable_id]
         current_lock = lm.current_lock
         if current_lock:
@@ -255,6 +359,12 @@ class DataManager:
         return True
 
     def write(self, transaction_id, variable_id, value):
+        '''
+        write a new value into the variable through the transaction
+        :param transaction_id: transaction's id
+        :param variable_id: variable's id
+        :param value: new value
+        '''
         v: Variable = self.data[variable_id]
         lm: LockManager = self.lock_table[variable_id]
         current_lock = lm.current_lock
@@ -286,6 +396,9 @@ class DataManager:
         v.temp_value = TempValue(value, transaction_id)
 
     def dump(self):
+        '''
+        standard output current status of all the variables of this site, and the up and down of the site
+        '''
         if self.is_up:
             print("Site {} [UP]:".format(self.site_id))
         else:
@@ -305,6 +418,10 @@ class DataManager:
             print("     " + non_replicated)
 
     def abort(self, transaction_id):
+        '''
+        abort the transaction and remove its locks
+        :param transaction_id: transaction's id
+        '''
         for lm in self.lock_table.values():
             # release current lock held by this transaction
             lm.release_current_lock_by_transaction(transaction_id)
@@ -315,6 +432,11 @@ class DataManager:
         self.resolve_lock_table()
 
     def commit(self, transaction_id, commit_ts):
+        '''
+        commit the written value into variable and remove the transaction's locks
+        :param transaction_id: transaction's id
+        :param commit_ts: commit's time
+        '''
         for lm in self.lock_table.values():
             # release current lock held by this transaction
             lm.release_current_lock_by_transaction(transaction_id)
@@ -333,6 +455,9 @@ class DataManager:
         self.resolve_lock_table()
 
     def resolve_lock_table(self):
+        '''
+        recheck the lock table and perform the necessary lock setting or lock sharing action
+        '''
         for v, lm in self.lock_table.items():
             if lm.queue:
                 if not lm.current_lock:
@@ -361,12 +486,20 @@ class DataManager:
                         lm.queue.remove(ql)
 
     def fail(self, ts):
+        '''
+        update the site with failed status and clean the lock table
+        :param ts: record the failure time
+        '''
         self.is_up = False
         self.fail_ts_list.append(ts)
         for lm in self.lock_table.values():
             lm.clear()
 
     def recover(self, ts):
+        '''
+        update the site with recovered status and clean the lock table
+        :param ts: record the recovery time
+        '''
         self.is_up = True
         self.recover_ts_list.append(ts)
         for v in self.data.values():
@@ -374,7 +507,17 @@ class DataManager:
                 v.is_readable = False  # only for replicated type variables
 
     def generate_blocking_graph(self):
+        '''
+        generate the blocking graph for this site
+        :return:
+        '''
         def current_blocks_queued(current_lock, queued_lock):
+            '''
+            check if current blocks queued
+            :param current_lock: current lock for the variable
+            :param queued_lock: each queued lock for the variable
+            :return: boolean value to indicate if current blocks queued
+            '''
             if current_lock.lock_type == LockType.R:
                 if queued_lock.lock_type == LockType.R or \
                         (len(current_lock.transaction_id_set) == 1 and
@@ -386,6 +529,12 @@ class DataManager:
             return not current_lock.transaction_id == queued_lock.transaction_id
 
         def queued_blocks_queued(queued_lock_left, queued_lock_right):
+            '''
+            check if queued blocks queued
+            :param queued_lock_left: the left lock of the queue
+            :param queued_lock_right: the right lock of the queue
+            :return: boolean value to indicate if queued blocks queued
+            '''
             if queued_lock_left.lock_type == LockType.R and \
                     queued_lock_right.lock_type == LockType.R:
                 return False
