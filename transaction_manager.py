@@ -17,6 +17,7 @@ class Transaction:
         self.sites_accessed = []
 
 
+# only Read and Write commands belong to Operation
 class Operation:
     def __init__(self, command, transaction_id, variable_id, value=None):
         self.command = command
@@ -58,8 +59,8 @@ class TransactionManager:
                 print("[INVALID_INSTRUCTION] " + e.message +
                       ": " + line.strip())
                 return False
-            finally:
-                print()
+            # finally:
+            #     print()
         return True
 
     def process_instruction(self, command, args):
@@ -74,7 +75,7 @@ class TransactionManager:
         elif command == "dump":
             self.dump()
         elif command == "end":
-            self.end(args[0], self.ts)
+            self.end(args[0])
         elif command == "fail":
             self.fail(int(args[0]))
         elif command == "recover":
@@ -144,6 +145,7 @@ class TransactionManager:
         ts = self.transaction_table[transaction_id].ts
         for dm in self.data_manager_list:
             if dm.is_up and dm.has_variable(variable_id):
+                # pass the transaction's begin time into each data manager when doing read-only
                 result = dm.read_snapshot(variable_id, ts)
                 if result.success:
                     print("{} (RO) reads {}.{}: {}".format(
@@ -174,10 +176,13 @@ class TransactionManager:
         can_get_all_write_locks = True
         for dm in self.data_manager_list:
             if dm.is_up and dm.has_variable(variable_id):
+                # check if all the relevant sites are down now
                 all_relevant_sites_down = False
                 result = dm.get_write_lock(transaction_id, variable_id)
                 if not result:
+                    # check if cannot get W-lock from any relevant site
                     can_get_all_write_locks = False
+
         if not all_relevant_sites_down and can_get_all_write_locks:
             # print("{} will write {} with value {}".format(
             #     transaction_id, variable_id, value))
@@ -198,7 +203,7 @@ class TransactionManager:
         for dm in self.data_manager_list:
             dm.dump()
 
-    def end(self, transaction_id, ts):
+    def end(self, transaction_id):
         # print("{} accessed sites {}".format(
         #     transaction_id,
         #     self.transaction_table[transaction_id].sites_accessed))
@@ -208,9 +213,10 @@ class TransactionManager:
             raise InvalidInstructionError(
                 "Transaction {} does not exist".format(transaction_id))
         if self.transaction_table[transaction_id].will_abort:
+            # this transaction has failed before
             self.abort(transaction_id, True)
         else:
-            self.commit(transaction_id, ts)
+            self.commit(transaction_id, self.ts)
 
     def abort(self, transaction_id, due_to_site_fail=False):
         for dm in self.data_manager_list:
@@ -241,7 +247,7 @@ class TransactionManager:
             # if t.sites_accessed:
             #     print(type(t.sites_accessed[0]))
             if (not t.is_ro) and (not t.will_abort) and (
-                    site_id in t.sites_accessed):
+                    site_id in t.sites_accessed):  # not applied to read-only transaction
                 t.will_abort = True
                 # print("{} will abort!!!".format(t.transaction_id))
 
