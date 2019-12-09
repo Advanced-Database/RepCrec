@@ -23,7 +23,8 @@ the standard input.
 - Output always goes to the standard output.
 
 ## Use reprounzip
-You can also use _reprounzip_ to unpack and run the `repcrec.rpz` package.
+You can also use _reprounzip_ to unpack and run the `repcrec.rpz` package,
+which includes 5 test cases.
 
 #### Install reprounzip on CIMS server
 To use _reprounzip_ on CIMS servers, first upload the `repcrec.rpz` file to
@@ -35,11 +36,12 @@ $ scp /filepath/repcrec.rpz userid@access.cims.nyu.edu:/home/userid/desiredFolde
 Then, perform the following steps on your CIMS server to satisfy prerequisites
 for _reprounzip_:
 ```bash
-$ module load python-3.6
+$ module load python-2.7
 $ python -c 'import reprozip'
 $ echo $?
-0  <-- getting 0 in this step means success
+0
 ```
+Getting 0 in the last step means success.
 
 Then, install _reprounzip_:
 ```bash
